@@ -418,12 +418,11 @@ class HailContext private(val sc: SparkContext,
     noHeader: Boolean,
     impute: Boolean,
     quote: java.lang.Character,
-    skipBlankLines: Boolean,
-    forceBGZ: Boolean
+    skipBlankLines: Boolean
   ): Table = importTables(inputs.asScala,
     Option(keyNames).map(_.asScala.toIndexedSeq),
     if (nPartitions == null) None else Some(nPartitions), types.asScala.toMap, comment.asScala.toArray,
-    separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
+    separator, missing, noHeader, impute, quote, skipBlankLines)
 
   def importTable(input: String,
     keyNames: Option[IndexedSeq[String]] = None,
@@ -435,10 +434,9 @@ class HailContext private(val sc: SparkContext,
     noHeader: Boolean = false,
     impute: Boolean = false,
     quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false
+    skipBlankLines: Boolean = false
   ): Table = importTables(List(input), keyNames, nPartitions, types, comment,
-    separator, missing, noHeader, impute, quote, skipBlankLines, forceBGZ)
+    separator, missing, noHeader, impute, quote, skipBlankLines)
 
   def importTables(inputs: Seq[String],
     keyNames: Option[IndexedSeq[String]] = None,
@@ -450,19 +448,16 @@ class HailContext private(val sc: SparkContext,
     noHeader: Boolean = false,
     impute: Boolean = false,
     quote: java.lang.Character = null,
-    skipBlankLines: Boolean = false,
-    forceBGZ: Boolean = false): Table = {
+    skipBlankLines: Boolean = false): Table = {
     require(nPartitions.forall(_ > 0), "nPartitions argument must be positive")
 
     val files = hadoopConf.globAll(inputs)
     if (files.isEmpty)
       fatal(s"Arguments referred to no files: '${ inputs.mkString(",") }'")
 
-    forceBGZip(forceBGZ) {
-      TextTableReader.read(this)(files, types, comment, separator, missing,
-        noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
-        keyNames, skipBlankLines)
-    }
+    TextTableReader.read(this)(files, types, comment, separator, missing,
+      noHeader, impute, nPartitions.getOrElse(sc.defaultMinPartitions), quote,
+      keyNames, skipBlankLines)
   }
 
   def importPlink(bed: String, bim: String, fam: String,

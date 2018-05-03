@@ -979,8 +979,7 @@ def import_gen(path,
            missing=str,
            types=dictof(str, hail_type),
            quote=nullable(char),
-           skip_blank_lines=bool,
-           force_bgz=bool)
+           skip_blank_lines=bool)
 def import_table(paths,
                  key=None,
                  min_partitions=None,
@@ -991,8 +990,7 @@ def import_table(paths,
                  missing="NA",
                  types={},
                  quote=None,
-                 skip_blank_lines=False,
-                 force_bgz=False) -> Table:
+                 skip_blank_lines=False) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -1147,12 +1145,6 @@ def import_table(paths,
     skip_blank_lines : :obj:`bool`
         If ``True``, ignore empty lines. Otherwise, throw an error if an empty
         line is found.
-    force_bgz : :obj:`bool`
-        If ``True``, load files as blocked gzip files, assuming
-        that they were actually compressed using the BGZ codec. This option is
-        useful when the file extension is not ``'.bgz'``, but the file is
-        blocked gzip, so that the file can be read in parallel and not on a
-        single node.
 
     Returns
     -------
@@ -1164,7 +1156,7 @@ def import_table(paths,
 
     jt = Env.hc()._jhc.importTable(paths, key, min_partitions, jtypes, comment,
                                    delimiter, missing, no_header, impute, quote,
-                                   skip_blank_lines, force_bgz)
+                                   skip_blank_lines)
     return Table(jt)
 
 
