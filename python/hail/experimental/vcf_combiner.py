@@ -60,7 +60,7 @@ def combine_infos(info_left, info_right) -> StructExpression:
         ExcessHet=mappend(ext, info_left['ExcessHet'], info_right['ExcessHet']),
         MQ=mappend(ext, info_left['MQ'], info_right['MQ']),
         MQRankSum=mappend(ext, info_left['MQRankSum'], info_right['MQRankSum']),
-        MQ_DQ=mappend(operator.add, info_left['MQ_DP'], info_right['MQ_DP']),
+        MQ_DP=mappend(operator.add, info_left['MQ_DP'], info_right['MQ_DP']),
         RAW_MQ=mappend(operator.add, info_left['RAW_MQ'], info_right['RAW_MQ']),
         SB=mappend(operator.add, info_left['SB'], info_right['SB']),
         ReadPosRankSum=mappend(ext, info_left['ReadPosRankSum'], info_right['ReadPosRankSum']),
