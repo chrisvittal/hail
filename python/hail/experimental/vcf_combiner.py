@@ -33,7 +33,7 @@ def read_and_transform_one(path, reference_genome='GRCh38') -> MatrixTable:
     def new_array(expr):
         return hl.empty_array(expr.dtype).append(expr)
     mt = hl.import_vcf(path, reference_genome=reference_genome)
-    mt = mt.annotate_entries(END=mt.info.END)
+    mt = mt.annotate_entries(END=mt.info.END, PL=mt['PL'][0:])
     # This collects all fields with median combiners into arrays so we can calculate medians
     # when needed
     mt = mt.annotate_rows(info=mt.info.annotate(
