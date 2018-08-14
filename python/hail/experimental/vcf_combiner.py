@@ -122,8 +122,8 @@ def transform_and_combine(mt_left, mt_right) -> Table:
     """Localizes two vcf-ish matrixtables, joins them, and combines their row fields
     does not unlocalize"""
     # pylint: disable=protected-access
-    left_col_len = len(mt_left.col)
-    right_col_len = len(mt_right.col)
+    left_col_len = mt_left.cols().count()
+    right_col_len = mt_right.cols().count()
     joined = do_join(mt_left, mt_right)
     filters = joined.transmute(
         filters=mappend(lambda s1, s2: s1.union(s2), joined.filters, joined.filters_1),
