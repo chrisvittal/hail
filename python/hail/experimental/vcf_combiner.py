@@ -85,7 +85,7 @@ def merge_alleles(left, right) -> ArrayExpression:
 def shuffle_pl(pl) -> ArrayExpression:
     return hl.cond(pl.length() == 10,
                    pl[:1].append(pl[3]).append(pl[5]).append(pl[1]).append(pl[4]).append(pl[2])
-                   .append(pl[6]).append(pl[8]).append(pl[7]).append(pl[9]),
+                         .append(pl[6]).append(pl[8]).append(pl[7]).append(pl[9]),
                    pl)
 
 
@@ -148,6 +148,59 @@ def combine_two_vcfs(mt_left, mt_right) -> MatrixTable:
     combined_cols = mt_left.cols().union(mt_right.cols())
     entries = transform_and_combine(mt_left, mt_right)
     return entries._unlocalize_entries(combined_cols, '__entries')
+
+
+def combine_tables(left, left_col_len, right, right_col_len) -> Table:
+    """combines two already localized tables"""
+    # pylint: disable=protected-access
+    joined = left.join(right, how='outer')
+    filters = joined.transmute(
+        filters=mappend(lambda s1, s2: s1.union(s2), joined.filters, joined.filters_1),
+        rsid=hl.or_else(joined.rsid, joined.rsid_1))
+    alleles = filters.transmute(
+        alleles_right=filters.alleles_1,
+        alleles=mappend(merge_alleles, filters.alleles, filters.alleles_1))
+    renumbered = alleles.annotate(
+        __entries_1=alleles.__entries_1.map(lambda fld: renumber_gt(fld, alleles.alleles_right, alleles.alleles))
+        ).drop('alleles_right')
+    entries = renumbered.transmute(
+        __entries=concatenate_entries(
+            renumbered.__entries, left_col_len,
+            renumbered.__entries_1, right_col_len),
+        info=combine_infos(renumbered.info, renumbered.info_1))
+    return entries, left_col_len + right_col_len
+
+
+def combine_vcfs(*mts):
+    """merges lists of vcf data returned with read_and_transform_one, or matrix tables in equivalent
+    """
+    # pylint: disable=protected-access
+    def localize(mt):
+        return mt._localize_entries('__entries')
+
+    def combine_all(mts):
+        """ does the combining """
+        from math import ceil
+        length = len(mts)
+        if length == 0:
+            raise Exception('combine all called with empty list')
+        if length == 1:
+            return mts[0]
+        elif length == 2:
+            return combine_tables(*mts[0], *mts[1])
+        split = ceil(length / 2)
+        return combine_tables(*combine_all(mts[:split]), *combine_all(mts[split:]))
+
+    cols = None
+    for mt in mts:
+        if cols is None:
+            cols = mt.cols()
+        else:
+            cols = cols.union(mt.cols())
+    mts_lens = [(localize(mt), mt.cols().count()) for mt in mts]
+    combined, _ = combine_all(mts_lens)
+    return combined._unlocalize_entries(cols, '__entries')
+
 
 # NOTE: these are just @chrisvittal's notes on how gVCF fields are combined
 #       some of it is copied from GenomicsDB's wiki.
