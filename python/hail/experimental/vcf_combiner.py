@@ -28,11 +28,11 @@ def position(arr, pred) -> NumericExpression:
     return hl.case().when(res.found, res.ind).default(hl.null(hl.tint32))
 
 
-def read_and_transform_one(path, reference_genome='GRCh38') -> MatrixTable:
+def read_and_transform_one(path, reference_genome='GRCh38', force_bgz=False) -> MatrixTable:
     """reads and transforms a gvcf into a form suitable for combining"""
     def new_array(expr):
         return hl.empty_array(expr.dtype).append(expr)
-    mt = hl.import_vcf(path, reference_genome=reference_genome)
+    mt = hl.import_vcf(path, reference_genome=reference_genome, force_bgz=force_bgz)
     mt = mt.annotate_entries(END=mt.info.END, PL=mt['PL'][0:])
     # This collects all fields with median combiners into arrays so we can calculate medians
     # when needed
