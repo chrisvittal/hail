@@ -39,7 +39,6 @@ def read_and_transform_one(path, reference_genome='GRCh38') -> MatrixTable:
     mt = mt.annotate_rows(info=mt.info.annotate(
         BaseQRankSum=new_array(mt.info['BaseQRankSum']),
         ClippingRankSum=new_array(mt.info['ClippingRankSum']),
-        ExcessHet=new_array(mt.info['ExcessHet']),
         MQ=new_array(mt.info['MQ']),
         MQRankSum=new_array(mt.info['MQRankSum']),
         ReadPosRankSum=new_array(mt.info['MQRankSum']),
@@ -57,7 +56,6 @@ def combine_infos(info_left, info_right) -> StructExpression:
         BaseQRankSum=mappend(ext, info_left['BaseQRankSum'], info_right['BaseQRankSum']),
         ClippingRankSum=mappend(ext, info_left['ClippingRankSum'], info_right['ClippingRankSum']),
         DP=mappend(operator.add, info_left['DP'], info_right['DP']),
-        ExcessHet=mappend(ext, info_left['ExcessHet'], info_right['ExcessHet']),
         MQ=mappend(ext, info_left['MQ'], info_right['MQ']),
         MQRankSum=mappend(ext, info_left['MQRankSum'], info_right['MQRankSum']),
         QUALapprox=mappend(operator.add, info_left['QUALapprox'], info_right['QUALapprox']),
@@ -219,7 +217,7 @@ def combine_vcfs(*mts):
 #       BaseQRankSum: median,
 #       ClippingRankSum: median,
 #       DP: sum
-#       ExcessHet: median,
+#       ExcessHet: median, # NOTE : this can also be dropped
 #       MQ: median,
 #       MQ_DP: sum,
 #       MQ0: median,
@@ -234,7 +232,7 @@ def combine_vcfs(*mts):
 #       END: move from INFO
 #   }
 #
-# The following are Truncated INFO fields for the specific VCFs this tool target
+# The following are Truncated INFO fields for the specific VCFs this tool targets
 # ##INFO=<ID=BaseQRankSum,Number=1,Type=Float>
 # ##INFO=<ID=ClippingRankSum,Number=1,Type=Float>
 # ##INFO=<ID=DP,Number=1,Type=Integer>
