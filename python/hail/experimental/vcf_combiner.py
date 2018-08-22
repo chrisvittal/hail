@@ -180,16 +180,13 @@ def combine_vcfs(*mts):
 
     def combine_all(mts):
         """ does the combining """
-        from math import ceil
-        length = len(mts)
-        if length == 0:
-            raise Exception('combine all called with empty list')
-        if length == 1:
-            return mts[0]
-        elif length == 2:
-            return combine_tables(*mts[0], *mts[1])
-        split = ceil(length / 2)
-        return combine_tables(*combine_all(mts[:split]), *combine_all(mts[split:]))
+        combined, count = None, None
+        for mt, mtc in mts:
+            if combined is None and count is None:
+                combined, count = mt, mtc
+                continue
+            combined, count = combine_tables(combined, count, mt, mtc)
+        return combined
 
     cols = None
     for mt in mts:
@@ -198,7 +195,7 @@ def combine_vcfs(*mts):
         else:
             cols = cols.union(mt.cols())
     mts_lens = [(localize(mt), mt.cols().count()) for mt in mts]
-    combined, _ = combine_all(mts_lens)
+    combined = combine_all(mts_lens)
     return combined._unlocalize_entries(cols, '__entries')
 
 
