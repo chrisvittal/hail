@@ -494,6 +494,31 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 }
 
+case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String) extends TableIR {
+  require(!children.isEmpty, "there must be at least one argument")
+  require(
+    children.head.typ.keyType.exists(k => children.tail.forall(e => e.typ.keyType.exists(rk =>
+      k isIsomorphicTo rk
+    ))),
+    "all keys must be the same type"
+  )
+  require(children.tail.forall(e => e.typ.rowType == children.head.typ.rowType), "all rows must have the same type")
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = children.head.partitionCounts
+
+  def typ: TableType = children.head.typ.copy(rowType = TStruct(fieldName -> TArray(children.head.typ.rowType)))
+
+  // Members declared in is.hail.expr.ir.BaseIR
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
+    TableMultiOuterJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName)
+
+  // Members declared in is.hail.expr.ir.TableIR
+  def execute(hc: HailContext): TableValue = {
+    val childValues = children.map(child => child.execute(hc))
+    ???
+  }
+}
+
 case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String) extends TableIR {
   require(left.typ.keyType.exists(l => right.typ.keyType.exists(r => r.isPrefixOf(l))),
     s"\n  L: ${ left.typ }\n  R: ${ right.typ }")
