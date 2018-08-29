@@ -517,11 +517,11 @@ case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String,
     TableMultiOuterJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
   def execute(hc: HailContext): TableValue = {
-    val childValues = children.map(child => child.execute(hc))
-    val childRvds = childValues.map(child => child.enforceOrderingRVD.asInstanceOf[OrderedRVD])
-    val childRanges = childRvds.flatMap(rvd => rvd.partitioner.rangeBounds)
+    val childValues = children.map(_.execute(hc))
+    val childRvds = childValues.map(_.enforceOrderingRVD.asInstanceOf[OrderedRVD])
+    val childRanges = childRvds.flatMap(_.partitioner.rangeBounds)
     val newPartitioner = OrderedRVDPartitioner.generate(childRvds.head.typ.kType, childRanges)
-    val repartitionedRvds = ???
+    val repartitionedRvds = childRvds.map(_.constrainToOrderedPartitioner(newPartitioner))
     ???
   }
 }
