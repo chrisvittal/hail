@@ -508,7 +508,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
 }
 
 case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
-  require(!children.isEmpty, "there must be at least one argument")
+  require(children.length < 2, "there must be at least two tables as arguments")
   require(
     children.head.typ.keyType.exists(k => children.tail.forall(e => e.typ.keyType.exists(rk =>
       k isIsomorphicTo rk
