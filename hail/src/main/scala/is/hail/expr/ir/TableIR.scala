@@ -476,27 +476,74 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 }
 
+// Possible TODO: Add ability to join on a prefix, rather than just the full keys
 case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
   require(children.length < 2, "there must be at least two tables as arguments")
+
+  private val first = children.head
+  private val rest = children.tail
+
   require(
-    children.head.typ.keyType.exists(k => children.tail.forall(e => e.typ.keyType.exists(rk =>
+      first.typ.keyType.exists(k => rest.forall(e => e.typ.keyType.exists(rk =>
       k isIsomorphicTo rk
     ))),
     "all keys must be the same type"
   )
-  require(children.tail.forall(e => e.typ.rowType == children.head.typ.rowType), "all rows must have the same type")
-  require(children.tail.forall(e => e.typ.globalType == children.head.typ.globalType),
+  require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
+  require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 
-  override def partitionCounts: Option[IndexedSeq[Long]] = children.head.partitionCounts
+  private val rvdType = OrderedRVDType(first.typ.key.get, first.typ.rowType)
+  private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
+  private val newValueType = TStruct(fieldName -> TArray(rvdType.valueType))
+  private val newRowType = rvdType.kType ++ newValueType
 
-  def typ: TableType = children.head.typ.copy(
-    rowType = TStruct(fieldName -> TArray(children.head.typ.rowType)),
-    globalType = TStruct(globalName -> TArray(children.head.typ.globalType))
+  def typ: TableType = first.typ.copy(
+    rowType = newRowType,
+    globalType = newGlobalType
   )
 
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
     TableMultiOuterJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
+
+  private val rvMerger = {
+    val rowType = rvdType.rowType
+    val keyIdx = rvdType.kFieldIdx
+    val valIdx = rvdType.valueFieldIdx
+    val localNewRowType = newRowType
+
+    { (_: RVDContext, it: Iterator[Array[RegionValue]]) =>
+      val rvb = new RegionValueBuilder()
+      val newRegionValue = RegionValue()
+
+      it.map { rvs =>
+        val len = rvs.length
+        val rv = rvs.takeWhile(rv => rv != null).head
+        rvb.set(rv.region)
+        rvb.start(localNewRowType)
+        rvb.startStruct()
+        rvb.addFields(rowType, rv, keyIdx)
+        rvb.startArray(len)
+        var i = 0
+        while (i < len) {
+          val rv = rvs(i)
+          rvb.startStruct()
+          if (rv != null) {
+            rvb.addFields(rowType, rv, valIdx)
+          } else {
+            rvb.skipFields(valIdx.length)
+          }
+          rvb.endStruct()
+          i += 1
+        }
+        rvb.endArray()
+        rvb.endStruct()
+
+        newRegionValue.set(rvb.region, rvb.end())
+        newRegionValue
+      }
+    }
+  }
 
   def execute(hc: HailContext): TableValue = {
     val childValues = children.map(_.execute(hc))
@@ -504,7 +551,13 @@ case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String,
     val childRanges = childRvds.flatMap(_.partitioner.rangeBounds)
     val newPartitioner = OrderedRVDPartitioner.generate(childRvds.head.typ.kType, childRanges)
     val repartitionedRvds = childRvds.map(_.constrainToOrderedPartitioner(newPartitioner))
-    ???
+
+    val newGlobals = BroadcastRow(
+      Row(childValues.map(_.globals.value)),
+      newGlobalType,
+      childValues.head.rvd.sparkContext)
+
+    TableValue(typ, newGlobals, ???)
   }
 }
 
