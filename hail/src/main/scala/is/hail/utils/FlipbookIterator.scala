@@ -2,6 +2,8 @@ package is.hail.utils
 
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
+import scala.collection.mutable.ArrayBuffer
+import scala.reflect.ClassTag
 
 /**
   * A StateMachine has the same primary interface as FlipbookIterator, but the
@@ -84,6 +86,100 @@ object FlipbookIterator {
     StagingIterator(sm)
 
   def empty[A] = StagingIterator(StateMachine.terminal[A])
+
+  def multiCogroup[A](
+    its: IndexedSeq[FlipbookIterator[A]],
+    ordView: OrderingView[A],
+    ord: (A, A) => Int
+  ): FlipbookIterator[Array[FlipbookIterator[A]]] = {
+    val staircases = its.map(_.staircased(ordView))
+    multiZipJoin(staircases, FlipbookIterator.empty, (l, r) => ord(l.head, r.head))
+  }
+
+  def multiZipJoin[A: ClassTag](
+    its: IndexedSeq[FlipbookIterator[A]],
+    default: A,
+    ord: (A, A) => Int
+  ): FlipbookIterator[Array[A]] = {
+    val staging = its.map(_.toStagingIterator)
+    val sm = new StateMachine[Array[A]] {
+      val value: Array[A] = Array.fill(its.length)(default)
+      var isValid = true
+      def advance() {
+        var smallest = -1
+        var i = 0
+        var buf = new ArrayBuffer[Int]
+        staging.map(_.stage())
+        while (i < its.length) {
+          if (staging(i).isValid) {
+            if (smallest == -1) // set the minimum
+              smallest = i
+            // check the current value against the smallest, if they are the same, add
+            // the index to the buffer, if it is greater, do nothing, if it is less,
+            // less, clear the buffer, and set the smallest index
+            val c = ord(staging(smallest).value, staging(i).value)
+            if (c == 0) {
+              buf.append(i)
+            } else if (c < 0) {
+              buf.clear()
+              buf.append(i)
+              smallest = i
+            }
+          }
+          i += 1
+        }
+
+        if (buf.isEmpty) {
+          isValid = false
+          return
+        }
+
+        for (i <- buf) {
+          value(i) = staging(i).consume()
+        }
+      }
+    }
+
+    sm.advance()
+    FlipbookIterator(sm)
+  }
+
+  def multiOuterJoin[A: ClassTag](
+    its: IndexedSeq[FlipbookIterator[A]],
+    ordView: OrderingView[A],
+    default: A,
+    buffers: Array[Growable[A] with Iterable[A]],
+    ord: (A, A) => Int
+  ): FlipbookIterator[Array[A]] = {
+    assert(buffers.length == its.length)
+    val len = buffers.length
+    multiCogroup(its, ordView, ord).flatMap { iters =>
+      var i = 0
+      val idxs = new ArrayBuffer[Int]
+      while (i < len) {
+        if (iters(i).isValid)
+          idxs.append(i)
+      }
+      val result: Array[A] = Array.fill(buffers.length)(default)
+      buffers.map(_.clear())
+      for (idx <- idxs) {
+        buffers(idx) ++= iters(idx)
+      }
+      var it = buffers(idxs(0)).iterator.toFlipbookIterator.map { e =>
+        result(idxs(0)) = e
+        result
+      }
+      for (idx <- idxs.tail) {
+        it = buffers(idx).iterator.toFlipbookIterator.flatMap { e =>
+          it.map { res =>
+            res(idx) = e
+            res
+          }
+        }
+      }
+      it
+    }
+  }
 }
 
 /**
