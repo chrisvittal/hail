@@ -117,6 +117,16 @@ object ContextRDD {
   def parallelize[C <: AutoCloseable] = parallelizeInstance.asInstanceOf[Parallelize[C]]
 
   type ElementType[C, T] = C => Iterator[T]
+
+  def czipNPartitions[C <: AutoCloseable, T: ClassTag, U: ClassTag](
+    crdds: IndexedSeq[ContextRDD[C, T]],
+    preservesPartitioning: Boolean = false
+  )(f: (C, IndexedSeq[Iterator[T]]) => Iterator[U]
+  ): ContextRDD[C, U] = {
+    // There is no spark function that will zip an arbitrary number of partitions, the best we can do is 4,
+    // I do not know how to proceed
+    ???
+  }
 }
 
 class ContextRDD[C <: AutoCloseable, T: ClassTag](
