@@ -12,6 +12,7 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 
+import scala.collection.generic.Growable
 import scala.reflect.ClassTag
 
 object TableIR {
@@ -188,7 +189,7 @@ case class TableImport(paths: Array[String], typ: TableType, readerOpts: TableRe
   * Let n be the longest common prefix of 'keys' and the old key, i.e. the
   * number of key fields that are not being changed.
   * - If 'isSorted', then 'child' must already be sorted by 'keys', and n must
-  *   not be zero. Thus, if 'isSorted', TableKeyBy will not shuffle or scan. 
+  *   not be zero. Thus, if 'isSorted', TableKeyBy will not shuffle or scan.
   *   The new partitioner will be the old one with partition bounds truncated
   *   to length n.
   * - If n = 'keys.length', i.e. we are simply shortening the key, do nothing
@@ -522,8 +523,8 @@ case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String,
         rvb.set(rv.region)
         rvb.start(localNewRowType)
         rvb.startStruct()
-        rvb.addFields(rowType, rv, keyIdx)
-        rvb.startArray(len)
+        rvb.addFields(rowType, rv, keyIdx) // Add the key
+        rvb.startArray(len) // add the values
         var i = 0
         while (i < len) {
           val rv = rvs(i)
@@ -546,18 +547,32 @@ case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String,
   }
 
   def execute(hc: HailContext): TableValue = {
+    val rowType = rvdType.rowType
     val childValues = children.map(_.execute(hc))
-    val childRvds = childValues.map(_.enforceOrderingRVD.asInstanceOf[OrderedRVD])
-    val childRanges = childRvds.flatMap(_.partitioner.rangeBounds)
-    val newPartitioner = OrderedRVDPartitioner.generate(childRvds.head.typ.kType, childRanges)
-    val repartitionedRvds = childRvds.map(_.constrainToOrderedPartitioner(newPartitioner))
+    val childRVDs = childValues.map(_.enforceOrderingRVD.asInstanceOf[OrderedRVD])
+    val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
+    val newPartitioner = OrderedRVDPartitioner.generate(childRVDs.head.typ.kType, childRanges)
+    val repartitionedRVDs = childRVDs.map(_.constrainToOrderedPartitioner(newPartitioner))
+
+    val newORVDType = OrderedRVDType(rvdType.key, newRowType)
+    val orvd = OrderedRVD.alignAndZipNPartitions(repartitionedRVDs, newORVDType) { (ctx, its) =>
+      val sideBuffers: Array[Region] = Array.fill(its.length)(ctx.freshContext.region)
+      val buffers = new Array[Growable[RegionValue] with Iterable[RegionValue]](its.length)
+      var i = 0
+      while (i < sideBuffers.length) {
+        buffers(i) = new RegionValueArrayBuffer(rowType, sideBuffers(i))
+        i += 1
+      }
+      val orvIters = its.map(OrderedRVIterator(rvdType, _, ctx))
+      rvMerger(ctx, OrderedRVIterator.multiOuterJoin(orvIters, buffers))
+    }
 
     val newGlobals = BroadcastRow(
       Row(childValues.map(_.globals.value)),
       newGlobalType,
       childValues.head.rvd.sparkContext)
 
-    TableValue(typ, newGlobals, ???)
+    TableValue(typ, newGlobals, orvd)
   }
 }
 
