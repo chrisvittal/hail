@@ -151,7 +151,7 @@ object FlipbookIterator {
     buffers: Array[Growable[A] with Iterable[A]],
     ord: (A, A) => Int
   ): FlipbookIterator[Array[A]] = {
-    assert(buffers.length == its.length)
+    require(buffers.length == its.length)
     val len = buffers.length
     multiCogroup(its, ordView, ord).flatMap { iters =>
       var i = 0

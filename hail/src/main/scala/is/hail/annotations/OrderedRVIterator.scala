@@ -4,6 +4,26 @@ import is.hail.rvd.{OrderedRVDType, RVDContext}
 import is.hail.utils._
 
 import scala.collection.generic.Growable
+import scala.reflect.ClassTag
+
+object OrderedRVIterator {
+  def multiOuterJoin[A: ClassTag](
+    its: IndexedSeq[OrderedRVIterator],
+    buffers: Array[Growable[RegionValue] with Iterable[RegionValue]]
+  ): Iterator[Array[RegionValue]] = {
+    require(its.length > 0)
+    val first = its(0)
+    require(its.length == buffers.length)
+    val flipbooks = its.map(_.iterator.toFlipbookIterator)
+    FlipbookIterator.multiOuterJoin(
+      flipbooks,
+      first.t.kRowOrdView(first.ctx.freshRegion),
+      null,
+      buffers,
+      first.t.joinComp(first.t).compare
+    )
+  }
+}
 
 case class OrderedRVIterator(
   t: OrderedRVDType,
