@@ -121,11 +121,15 @@ object ContextRDD {
   def czipNPartitions[C <: AutoCloseable, T: ClassTag, U: ClassTag](
     crdds: IndexedSeq[ContextRDD[C, T]],
     preservesPartitioning: Boolean = false
-  )(f: (C, IndexedSeq[Iterator[T]]) => Iterator[U]
+  )(f: (C, Array[Iterator[T]]) => Iterator[U]
   ): ContextRDD[C, U] = {
-    // There is no spark function that will zip an arbitrary number of partitions, the best we can do is 4,
-    // I do not know how to proceed
-    ???
+    val mkc = crdds.head.mkc
+    def inCtx(f: C => Iterator[U]): Iterator[C => Iterator[U]] = Iterator.single(f)
+    new ContextRDD(
+      MultiWayJoinRDD(crdds.map(_.rdd), preservesPartitioning) { its =>
+        inCtx(ctx => f(ctx, its.map(_.flatMap(_(ctx)))))
+      },
+      mkc)
   }
 }
 

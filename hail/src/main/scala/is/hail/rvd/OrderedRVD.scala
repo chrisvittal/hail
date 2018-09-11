@@ -1256,7 +1256,7 @@ object OrderedRVD {
   def alignAndZipNPartitions(
     orvds: IndexedSeq[OrderedRVD],
     newTyp: OrderedRVDType
-  )(zipper: (RVDContext, IndexedSeq[Iterator[RegionValue]]) => Iterator[RegionValue]
+  )(zipper: (RVDContext, Array[Iterator[RegionValue]]) => Iterator[RegionValue]
   ): OrderedRVD = {
     require(orvds.length >= 1)
     val first = orvds.head
