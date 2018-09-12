@@ -252,7 +252,7 @@ object PruneDeadFields {
           }: _*),
           globalType = minimal(right.typ.globalType))
         memoizeTableIR(right, rightDep, memo)
-      case TableMultiOuterJoin(children, _, _) =>
+      case TableMultiWayZipJoin(children, _, _) =>
         children.foreach { child =>
           val dep = child.typ.copy(
             rowType = TStruct(child.typ.rowType.required, child.typ.rowType.fieldNames.flatMap(f =>
