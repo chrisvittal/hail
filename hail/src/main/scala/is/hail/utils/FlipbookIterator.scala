@@ -143,43 +143,6 @@ object FlipbookIterator {
     sm.advance()
     FlipbookIterator(sm)
   }
-
-  def multiOuterJoin[A: ClassTag](
-    its: IndexedSeq[FlipbookIterator[A]],
-    ordView: OrderingView[A],
-    default: A,
-    buffers: Array[Growable[A] with Iterable[A]],
-    ord: (A, A) => Int
-  ): FlipbookIterator[Array[A]] = {
-    require(buffers.length == its.length)
-    val len = buffers.length
-    multiCogroup(its, ordView, ord).flatMap { iters =>
-      var i = 0
-      val idxs = new ArrayBuffer[Int]
-      while (i < len) {
-        if (iters(i).isValid)
-          idxs.append(i)
-      }
-      val result: Array[A] = Array.fill(buffers.length)(default)
-      buffers.map(_.clear())
-      for (idx <- idxs) {
-        buffers(idx) ++= iters(idx)
-      }
-      var it = buffers(idxs(0)).iterator.toFlipbookIterator.map { e =>
-        result(idxs(0)) = e
-        result
-      }
-      for (idx <- idxs.tail) {
-        it = buffers(idx).iterator.toFlipbookIterator.flatMap { e =>
-          it.map { res =>
-            res(idx) = e
-            res
-          }
-        }
-      }
-      it
-    }
-  }
 }
 
 /**

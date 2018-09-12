@@ -556,15 +556,8 @@ case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String,
 
     val newORVDType = OrderedRVDType(rvdType.key, newRowType)
     val orvd = OrderedRVD.alignAndZipNPartitions(repartitionedRVDs, newORVDType) { (ctx, its) =>
-      val sideBuffers: Array[Region] = Array.fill(its.length)(ctx.freshContext.region)
-      val buffers = new Array[Growable[RegionValue] with Iterable[RegionValue]](its.length)
-      var i = 0
-      while (i < sideBuffers.length) {
-        buffers(i) = new RegionValueArrayBuffer(rowType, sideBuffers(i))
-        i += 1
-      }
       val orvIters = its.map(OrderedRVIterator(rvdType, _, ctx))
-      rvMerger(ctx, OrderedRVIterator.multiOuterJoin(orvIters, buffers))
+      rvMerger(ctx, OrderedRVIterator.multiZipJoin(orvIters))
     }
 
     val newGlobals = BroadcastRow(
