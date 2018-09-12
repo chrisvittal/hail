@@ -496,7 +496,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
 
 // Possible TODO: Add ability to join on a prefix, rather than just the full keys
 case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
-  require(children.length < 2, "there must be at least two tables as arguments")
+  require(children.length > 0, "there must be at least one table as an argument")
 
   private val first = children.head
   private val rest = children.tail
