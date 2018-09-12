@@ -12,7 +12,6 @@ import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.sql.Row
 
-import scala.collection.generic.Growable
 import scala.reflect.ClassTag
 
 object TableIR {
@@ -567,7 +566,7 @@ case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String,
   def execute(hc: HailContext): TableValue = {
     val rowType = rvdType.rowType
     val childValues = children.map(_.execute(hc))
-    val childRVDs = childValues.map(_.enforceOrderingRVD.asInstanceOf[OrderedRVD])
+    val childRVDs = childValues.map(_.rvd.asInstanceOf[OrderedRVD])
     val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
     val newPartitioner = OrderedRVDPartitioner.generate(childRVDs.head.typ.kType, childRanges)
     val repartitionedRVDs = childRVDs.map(_.constrainToOrderedPartitioner(newPartitioner))
