@@ -477,7 +477,7 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
 }
 
 // Possible TODO: Add ability to join on a prefix, rather than just the full keys
-case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
+case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
   require(children.length < 2, "there must be at least two tables as arguments")
 
   private val first = children.head
@@ -504,7 +504,7 @@ case class TableMultiOuterJoin(children: IndexedSeq[TableIR], fieldName: String,
   )
 
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
-    TableMultiOuterJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
+    TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
   private val rvMerger = {
     val rowType = rvdType.rowType
