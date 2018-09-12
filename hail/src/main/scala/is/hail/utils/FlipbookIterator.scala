@@ -103,27 +103,32 @@ object FlipbookIterator {
   ): FlipbookIterator[Array[A]] = {
     val staging = its.map(_.toStagingIterator)
     val sm = new StateMachine[Array[A]] {
-      val value: Array[A] = Array.fill(its.length)(default)
+      private val len = its.length
+      var value: Array[A] = null
       var isValid = true
       def advance() {
+        value = Array.fill(len)(default)
         var smallest = -1
         var i = 0
         var buf = new ArrayBuffer[Int]
         staging.map(_.stage())
         while (i < its.length) {
           if (staging(i).isValid) {
-            if (smallest == -1) // set the minimum
+            if (smallest == -1) { // set the minimum
               smallest = i
+              buf.append(i)
+            } else {
             // check the current value against the smallest, if they are the same, add
             // the index to the buffer, if it is greater, do nothing, if it is less,
             // less, clear the buffer, and set the smallest index
-            val c = ord(staging(smallest).value, staging(i).value)
-            if (c == 0) {
-              buf.append(i)
-            } else if (c < 0) {
-              buf.clear()
-              buf.append(i)
-              smallest = i
+              val c = ord(staging(smallest).value, staging(i).value)
+              if (c == 0) {
+                buf.append(i)
+              } else if (c > 0) {
+                buf.clear()
+                buf.append(i)
+                smallest = i
+              }
             }
           }
           i += 1
