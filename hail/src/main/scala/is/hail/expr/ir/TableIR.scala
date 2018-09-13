@@ -494,6 +494,33 @@ case class TableJoin(left: TableIR, right: TableIR, joinType: String, joinKey: I
   }
 }
 
+case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String) extends TableIR {
+  require(left.typ.keyType.exists(l => right.typ.keyType.exists(r => r.isPrefixOf(l))),
+    s"\n  L: ${ left.typ }\n  R: ${ right.typ }")
+
+  def children: IndexedSeq[BaseIR] = Array(left, right)
+
+  private val newRowType = left.typ.rowType.structInsert(right.typ.valueType, List(root))._1
+  val typ: TableType = left.typ.copy(rowType = newRowType)
+
+  override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
+
+  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
+    val IndexedSeq(newLeft: TableIR, newRight: TableIR) = newChildren
+    TableLeftJoinRightDistinct(newLeft, newRight, root)
+  }
+
+  override def execute(hc: HailContext): TableValue = {
+    val leftValue = left.execute(hc)
+    val rightValue = right.execute(hc)
+
+    leftValue.copy(
+      typ = typ,
+      rvd = leftValue.rvd.asInstanceOf[OrderedRVD]
+        .orderedLeftJoinDistinctAndInsert(rightValue.rvd.asInstanceOf[OrderedRVD], root))
+  }
+}
+
 // Possible TODO: Add ability to join on a prefix, rather than just the full keys
 case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
   require(children.length > 0, "there must be at least one table as an argument")
@@ -523,7 +550,6 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
 
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
-
 
   def execute(hc: HailContext): TableValue = {
     val rowType = rvdType.rowType
@@ -580,33 +606,6 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       childValues.head.rvd.sparkContext)
 
     TableValue(typ, newGlobals, orvd)
-  }
-}
-
-case class TableLeftJoinRightDistinct(left: TableIR, right: TableIR, root: String) extends TableIR {
-  require(left.typ.keyType.exists(l => right.typ.keyType.exists(r => r.isPrefixOf(l))),
-    s"\n  L: ${ left.typ }\n  R: ${ right.typ }")
-
-  def children: IndexedSeq[BaseIR] = Array(left, right)
-
-  private val newRowType = left.typ.rowType.structInsert(right.typ.valueType, List(root))._1
-  val typ: TableType = left.typ.copy(rowType = newRowType)
-
-  override def partitionCounts: Option[IndexedSeq[Long]] = left.partitionCounts
-
-  def copy(newChildren: IndexedSeq[BaseIR]): BaseIR = {
-    val IndexedSeq(newLeft: TableIR, newRight: TableIR) = newChildren
-    TableLeftJoinRightDistinct(newLeft, newRight, root)
-  }
-
-  override def execute(hc: HailContext): TableValue = {
-    val leftValue = left.execute(hc)
-    val rightValue = right.execute(hc)
-
-    leftValue.copy(
-      typ = typ,
-      rvd = leftValue.rvd.asInstanceOf[OrderedRVD]
-        .orderedLeftJoinDistinctAndInsert(rightValue.rvd.asInstanceOf[OrderedRVD], root))
   }
 }
 
