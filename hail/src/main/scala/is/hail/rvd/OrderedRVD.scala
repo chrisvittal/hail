@@ -1104,7 +1104,6 @@ object OrderedRVD {
     newTyp: OrderedRVDType
   )(zipper: (RVDContext, Array[Iterator[RegionValue]]) => Iterator[RegionValue]
   ): OrderedRVD = {
-    require(orvds.length >= 1)
     val first = orvds.head
     require(newTyp.kType isIsomorphicTo first.typ.kType)
     require(orvds.forall(_.typ.kType isIsomorphicTo first.typ.kType))
