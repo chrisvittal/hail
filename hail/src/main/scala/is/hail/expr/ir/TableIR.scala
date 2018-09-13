@@ -572,13 +572,13 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         var i = 0
         while (i < len) {
           val rv = rvs(i)
-          rvb.startStruct()
           if (rv != null) {
+            rvb.startStruct()
             rvb.addFields(rowType, rv, valIdx)
+            rvb.endStruct()
           } else {
-            rvb.skipFields(valIdx.length)
+            rvb.setMissing()
           }
-          rvb.endStruct()
           i += 1
         }
         rvb.endArray()
