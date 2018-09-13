@@ -506,13 +506,14 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   def copy(newChildren: IndexedSeq[BaseIR]): BaseIR =
     TableMultiWayZipJoin(newChildren.asInstanceOf[IndexedSeq[TableIR]], fieldName, globalName)
 
-  private val rvMerger = {
+
+  def execute(hc: HailContext): TableValue = {
     val rowType = rvdType.rowType
     val keyIdx = rvdType.kFieldIdx
     val valIdx = rvdType.valueFieldIdx
+    val localRVDType = rvdType
     val localNewRowType = newRowType
-
-    { (_: RVDContext, it: Iterator[Array[RegionValue]]) =>
+    val rvMerger = { it: Iterator[Array[RegionValue]] =>
       val rvb = new RegionValueBuilder()
       val newRegionValue = RegionValue()
 
@@ -543,20 +544,16 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         newRegionValue
       }
     }
-  }
 
-  def execute(hc: HailContext): TableValue = {
-    val rowType = rvdType.rowType
     val childValues = children.map(_.execute(hc))
     val childRVDs = childValues.map(_.rvd.asInstanceOf[OrderedRVD])
     val childRanges = childRVDs.flatMap(_.partitioner.rangeBounds)
     val newPartitioner = OrderedRVDPartitioner.generate(childRVDs.head.typ.kType, childRanges)
     val repartitionedRVDs = childRVDs.map(_.constrainToOrderedPartitioner(newPartitioner))
-
-    val newORVDType = OrderedRVDType(rvdType.key, newRowType)
+    val newORVDType = OrderedRVDType(localRVDType.key, localNewRowType)
     val orvd = OrderedRVD.alignAndZipNPartitions(repartitionedRVDs, newORVDType) { (ctx, its) =>
-      val orvIters = its.map(OrderedRVIterator(rvdType, _, ctx))
-      rvMerger(ctx, OrderedRVIterator.multiZipJoin(orvIters))
+      val orvIters = its.map(it => OrderedRVIterator(localRVDType, it, ctx))
+      rvMerger(OrderedRVIterator.multiZipJoin(orvIters))
     }
 
     val newGlobals = BroadcastRow(
