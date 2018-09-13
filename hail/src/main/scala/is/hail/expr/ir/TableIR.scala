@@ -519,7 +519,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
 
       it.map { rvs =>
         val len = rvs.length
-        val rv = rvs.takeWhile(rv => rv != null).head
+        val rv = rvs.dropWhile(rv => rv == null).head
         rvb.set(rv.region)
         rvb.start(localNewRowType)
         rvb.startStruct()
