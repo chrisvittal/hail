@@ -286,7 +286,7 @@ class TableIRSuite extends SparkSuite {
     val t3 = Table(hc, d3, rowSig, Some(key))
 
     val testIr = TableMultiWayZipJoin(IndexedSeq(t1, t2, t3).map(_.tir), "__data", "__globals")
-    val tv = testIr.execute(hc)
+    val testTable = new Table(hc, testIr)
 
     // TODO, add real comparison, the appropriate data for this is:
     // [{"id: 0, "__data": [{"name": "a", "data": 0.0 }, {"name": "d", "data": 1.1},  null                        ]},
@@ -294,6 +294,22 @@ class TableIRSuite extends SparkSuite {
     //  {"id: 1, "__data": [{"name": "b", "data": 3.14}, null,                        {"name": "f", "data":  9.99}]},
     //  {"id: 2, "__data": [{"name": "c", "data": 2.78}, {"name": "v", "data": 7.89}, {"name": "g", "data": -1.0 }]},
     //  {"id: 3, "__data": [null,                        null,                        {"name": "z", "data":  0.01}]}]
-    tv.rdd.collect.foreach(println)
+    val expectedSchema = TStruct(
+      "id" -> TInt32(),
+      "__data" -> TArray(TStruct(
+        "name" -> TString(),
+        "data" -> TFloat64()))
+    )
+    val globalSig = TStruct("__globals" -> TArray(TStruct()))
+    val globalData = Row.fromSeq(Array(IndexedSeq(Array[Any](), Array[Any](), Array[Any]()).map(Row.fromSeq(_))))
+    val expectedData = sc.parallelize(Array(
+        Array(0, IndexedSeq(Row.fromSeq(Array("a", 0.0)),  Row.fromSeq(Array("d", 1.1)),  null)),
+        Array(0, IndexedSeq(null,                          Row.fromSeq(Array("x", 2.2)),  null)),
+        Array(1, IndexedSeq(Row.fromSeq(Array("b", 3.14)), null,                          Row.fromSeq(Array("f",  9.99)))),
+        Array(2, IndexedSeq(Row.fromSeq(Array("c", 2.78)), Row.fromSeq(Array("v", 7.89)), Row.fromSeq(Array("g", -1.0)))),
+        Array(3, IndexedSeq(null,                          null,                          Row.fromSeq(Array("z",  0.01))))
+      ).map(Row.fromSeq(_)))
+    val expectedTable = Table(hc, expectedData, expectedSchema, Some(key), globalSig, globalData)
+    assert(testTable.same(expectedTable))
   }
 }
