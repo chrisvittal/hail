@@ -288,12 +288,6 @@ class TableIRSuite extends SparkSuite {
     val testIr = TableMultiWayZipJoin(IndexedSeq(t1, t2, t3).map(_.tir), "__data", "__globals")
     val testTable = new Table(hc, testIr)
 
-    // TODO, add real comparison, the appropriate data for this is:
-    // [{"id: 0, "__data": [{"name": "a", "data": 0.0 }, {"name": "d", "data": 1.1},  null                        ]},
-    //  {"id: 0, "__data": [null,                        {"name": "x", "data": 2.2},  null                        ]},
-    //  {"id: 1, "__data": [{"name": "b", "data": 3.14}, null,                        {"name": "f", "data":  9.99}]},
-    //  {"id: 2, "__data": [{"name": "c", "data": 2.78}, {"name": "v", "data": 7.89}, {"name": "g", "data": -1.0 }]},
-    //  {"id: 3, "__data": [null,                        null,                        {"name": "z", "data":  0.01}]}]
     val expectedSchema = TStruct(
       "id" -> TInt32(),
       "__data" -> TArray(TStruct(
