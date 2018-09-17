@@ -406,9 +406,13 @@ class Tests(unittest.TestCase):
             schema=hl.tstruct(id=hl.tint32, __data=hl.tarray(hl.tstruct(name=hl.tstr, data=hl.tfloat64))),
             key='id')
         self.assertTrue(expected._same(joined))
+
         expected2 = expected.transmute(data=expected['__data'])
         joined_same_name = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('globals')
         self.assertTrue(expected2._same(joined_same_name))
+
+        joined_nothing = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
+        self.assertEqual(joined_nothing._force_count(), 5)
 
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
