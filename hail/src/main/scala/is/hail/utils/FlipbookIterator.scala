@@ -87,15 +87,6 @@ object FlipbookIterator {
 
   def empty[A] = StagingIterator(StateMachine.terminal[A])
 
-  def multiCogroup[A](
-    its: IndexedSeq[FlipbookIterator[A]],
-    ordView: OrderingView[A],
-    ord: (A, A) => Int
-  ): FlipbookIterator[Array[FlipbookIterator[A]]] = {
-    val staircases = its.map(_.staircased(ordView))
-    multiZipJoin(staircases, FlipbookIterator.empty, (l, r) => ord(l.head, r.head))
-  }
-
   def multiZipJoin[A: ClassTag](
     its: IndexedSeq[FlipbookIterator[A]],
     default: A,
