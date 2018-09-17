@@ -377,7 +377,7 @@ class Tests(unittest.TestCase):
         d1 = [{"id": 0, "name": "a", "data": 0.0},
               {"id": 1, "name": "b", "data": 3.14},
               {"id": 2, "name": "c", "data": 2.78}]
-        d2 = [{"id": 0, "name": "x", "data": 2.2},
+        d2 = [{"id": 0, "name": "d", "data": 1.1},
               {"id": 0, "name": "x", "data": 2.2},
               {"id": 2, "name": "v", "data": 7.89}]
         d3 = [{"id": 1, "name": "f", "data":  9.99},
@@ -406,6 +406,9 @@ class Tests(unittest.TestCase):
             schema=hl.tstruct(id=hl.tint32, __data=hl.tarray(hl.tstruct(name=hl.tstr, data=hl.tfloat64))),
             key='id')
         self.assertTrue(expected._same(joined))
+        expected2 = expected.transmute(data=expected['__data'])
+        joined_same_name = hl.Table._multi_way_zip_join(ts, 'data', 'globals').drop('globals')
+        self.assertTrue(expected2._same(joined_same_name))
 
     def test_index_maintains_count(self):
         t1 = hl.Table.parallelize([
