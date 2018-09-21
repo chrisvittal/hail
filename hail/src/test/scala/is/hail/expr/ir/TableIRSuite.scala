@@ -290,9 +290,9 @@ class TableIRSuite extends SparkSuite {
       Array(1, "f", 9.99),
       Array(2, "g", -1.0),
       Array(3, "z", 0.01)).map(Row.fromSeq(_)))
-    val t1 = Table(hc, d1, rowSig, Some(key))
-    val t2 = Table(hc, d2, rowSig, Some(key))
-    val t3 = Table(hc, d3, rowSig, Some(key))
+    val t1 = Table(hc, d1, rowSig, key)
+    val t2 = Table(hc, d2, rowSig, key)
+    val t3 = Table(hc, d3, rowSig, key)
 
     val testIr = TableMultiWayZipJoin(IndexedSeq(t1, t2, t3).map(_.tir), "__data", "__globals")
     val testTable = new Table(hc, testIr)
@@ -312,7 +312,7 @@ class TableIRSuite extends SparkSuite {
         Array(2, IndexedSeq(Row.fromSeq(Array("c", 2.78)), Row.fromSeq(Array("v", 7.89)), Row.fromSeq(Array("g", -1.0)))),
         Array(3, IndexedSeq(null,                          null,                          Row.fromSeq(Array("z",  0.01))))
       ).map(Row.fromSeq(_)))
-    val expectedTable = Table(hc, expectedData, expectedSchema, Some(key), globalSig, globalData)
+    val expectedTable = Table(hc, expectedData, expectedSchema, key, globalSig, globalData)
     assert(testTable.same(expectedTable))
   }
 }

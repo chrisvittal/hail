@@ -484,16 +484,14 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
   private val rest = children.tail
 
   require(
-      first.typ.keyType.exists(k => rest.forall(e => e.typ.keyType.exists(rk =>
-      k isIsomorphicTo rk
-    ))),
+    rest.forall(e => e.typ.keyType isIsomorphicTo first.typ.keyType),
     "all keys must be the same type"
   )
   require(rest.forall(e => e.typ.rowType == first.typ.rowType), "all rows must have the same type")
   require(rest.forall(e => e.typ.globalType == first.typ.globalType),
     "all globals must have the same type")
 
-  private val rvdType = OrderedRVDType(first.typ.key.get, first.typ.rowType)
+  private val rvdType = OrderedRVDType(first.typ.key, first.typ.rowType)
   private val newGlobalType = TStruct(globalName -> TArray(first.typ.globalType))
   private val newValueType = TStruct(fieldName -> TArray(rvdType.valueType))
   private val newRowType = rvdType.kType ++ newValueType
