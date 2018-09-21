@@ -95,13 +95,19 @@ object FlipbookIterator {
     val staging = its.map(_.toStagingIterator)
     val sm = new StateMachine[Array[A]] {
       private val len = its.length
-      var value: Array[A] = null
+      var value: Array[A] = Array.fill(len)(default)
       var isValid = true
+      var buf = new ArrayBuffer[Int]
       def advance() {
-        value = Array.fill(len)(default)
+        buf.clear()
         var smallest = -1
         var i = 0
-        var buf = new ArrayBuffer[Int]
+        while (i < value.length) {
+          value(i) =  default
+          i += 1
+        }
+
+        i = 0
         staging.map(_.stage())
         while (i < its.length) {
           if (staging(i).isValid) {
