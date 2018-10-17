@@ -1,0 +1,38 @@
+#!/bin/sh
+
+pkg_name=lz4
+pkg_version=1.8.3
+url='https://storage.googleapis.com/hail-common/thirdparty/sources'
+tarballs="lz4-$pkg_version.tar.gz"
+_pkg=$pkg_name-$pkg_version
+
+# always run from script directory/$pkg_dir
+fetch() {
+    # won't do anything if the file exists
+    # set HAIL_PKG_NOFETCH to skip
+    for tarball in $tarballs; do
+        if [ ! -e $tarball ]; then
+            curl -L -O "$url/$tarball"
+        fi
+    done
+}
+
+prepare() {
+    # will always unpack the tarballs
+    # set HAIL_PKG_NOPREP to skip
+    cd $src_dir
+    for tarball in ../*.tar.*; do
+        tar xf $tarball
+    done
+}
+
+build() {
+    # set HAIL_PKG_NOBUILD to skip
+    cd $src_dir/$_pkg/lib
+    make V=1 PREFIX=/
+}
+
+install() {
+    # set HAIL_PKG_NOINSTALL to skip
+    make V=1 PREFIX= DESTDIR=$PWD/dist -C src/$_pkg/lib install
+}

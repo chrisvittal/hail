@@ -1,0 +1,53 @@
+#!/bin/sh
+
+pkg_name=clang
+pkg_version=7.0.0
+url='https://storage.googleapis.com/hail-common/thirdparty/sources'
+tarballs="cfe-$pkg_version.src.tar.xz
+compiler-rt-$pkg_version.src.tar.xz
+libcxx-$pkg_version.src.tar.xz
+libcxxabi-$pkg_version.src.tar.xz
+llvm-$pkg_version.src.tar.xz"
+llvm_dir=llvm-$pkg_version.src
+
+fetch() {
+    for tarball in $tarballs; do
+        if [ ! -e $tarball ]; then
+            curl -L -O "$url/$tarball"
+        fi
+    done
+}
+
+prepare() {
+    mkdir -p src && cd src
+    for tarball in ../*.xz; do
+        tar xf $tarball
+    done
+
+    mv cfe-$pkg_version.src $llvm_dir/tools/clang
+    mv compiler-rt-$pkg_version.src $llvm_dir/projects/compiler-rt
+    mv libcxx-$pkg_version.src $llvm_dir/projects/libcxx
+    mv libcxxabi-$pkg_version.src $llvm_dir/projects/libcxxabi
+
+    mkdir $llvm_dir/build
+}
+
+build() {
+    cd src/$llvm_dir/build
+    cmake .. -G 'Unix Makefiles' \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_INSTALL_PREFIX=/ \
+        -DLLVM_TARGETS_TO_BUILD="X86"
+    make
+}
+
+install() {
+    mkdir dist
+    path=$(realpath $dist)
+    cd src/$llvm_dir/build
+    DESTDIR=$path make 'install/strip'
+}
+
+package() {
+    tar cf - dist/bin dist/include dist/lib | xz -v -9 > $PKGDIR/$pkg_name-$pkg_version.pkg.tar.xz
+}
