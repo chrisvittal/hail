@@ -12,8 +12,11 @@ llvm_dir=llvm-$pkg_version.src
 
 fetch() {
     for tarball in $tarballs; do
+        printf "    Downloading $tarball...\n"
         if [ ! -e $tarball ]; then
             curl -L -O "$url/$tarball"
+        else
+            printf "    Up to date: $tarball...\n"
         fi
     done
 }
@@ -29,23 +32,26 @@ prepare() {
     mv libcxx-$pkg_version.src $llvm_dir/projects/libcxx
     mv libcxxabi-$pkg_version.src $llvm_dir/projects/libcxxabi
 
-    mkdir $llvm_dir/build
+    mkdir -p $llvm_dir/build
 }
 
 build() {
     cd src/$llvm_dir/build
-    cmake .. -G 'Unix Makefiles' \
+    cmake .. -G 'Ninja' \
+        -Wno-dev \
+        -DPYTHON_EXECUTABLE=/usr/bin/python3 \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/ \
+        -DCMAKE_INSTALL_PREFIX= \
+        -DLLVM_BUILD_LLVM_DYLIB=ON \
+        -DLLVM_LINK_LLVM_DYLIB=ON \
+        -DLLVM_ENABLE_OCAMLDOC=OFF \
         -DLLVM_TARGETS_TO_BUILD="X86"
-    make
+    ninja
 }
 
 install() {
-    mkdir dist
-    path=$(realpath $dist)
     cd src/$llvm_dir/build
-    DESTDIR=$path make 'install/strip'
+    DESTDIR=$dist_dir ninja 'install/strip'
 }
 
 package() {

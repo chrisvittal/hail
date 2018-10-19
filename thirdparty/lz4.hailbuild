@@ -29,10 +29,10 @@ prepare() {
 build() {
     # set HAIL_PKG_NOBUILD to skip
     cd $src_dir/$_pkg/lib
-    make V=1 PREFIX=/
+    make V=1 PREFIX=''
 }
 
 install() {
     # set HAIL_PKG_NOINSTALL to skip
-    make V=1 PREFIX= DESTDIR=$PWD/dist -C src/$_pkg/lib install
+    make V=1 PREFIX='' DESTDIR=$dist_dir -C src/$_pkg/lib install
 }

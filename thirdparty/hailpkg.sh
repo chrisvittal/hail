@@ -12,7 +12,6 @@ if [ -z $1 ]; then
 fi
 
 package() {
-    echo DEBUG: PACKAGE=$PKGDIR/$pkg_name-$pkg_version.pkg.tar.xz
     tar cf - dist | xz -v -9 > $PKGDIR/$pkg_name-$pkg_version.pkg.tar.xz
 }
 
@@ -23,7 +22,8 @@ if [ ! -d $PKGDIR ]; then mkdir $PKGDIR; fi
 
 pkg_dir=$(realpath $BUILDDIR/$pkg_name-$pkg_version)
 src_dir=$pkg_dir/src
-mkdir -p $pkg_dir/src
+dist_dir=$pkg_dir/dist
+mkdir -p $src_dir $dist_dir
 
 cd $pkg_dir
 if [ -z ${HAIL_PKG_NOFETCH+x} ]; then
@@ -36,7 +36,7 @@ if [ -z ${HAIL_PKG_NOPREP+x} ]; then
     prepare
 fi
 cd $pkg_dir
-if [ -z ${HAILPKG_NOBUILD+x} ]; then
+if [ -z ${HAIL_PKG_NOBUILD+x} ]; then
     printf "\tHailbuild: compile\n"
     build
 fi
