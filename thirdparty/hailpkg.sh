@@ -29,21 +29,29 @@ cd $pkg_dir
 if [ -z ${HAIL_PKG_NOFETCH+x} ]; then
     printf "\tHailbuild: fetch\n"
     fetch
+else
+    HAIL_PKG_NOPREP=1
 fi
 cd $pkg_dir
 if [ -z ${HAIL_PKG_NOPREP+x} ]; then
     printf "\tHailbuild: prepare\n"
     prepare
+else
+    HAIL_PKG_NOBUILD=1
 fi
 cd $pkg_dir
 if [ -z ${HAIL_PKG_NOBUILD+x} ]; then
     printf "\tHailbuild: compile\n"
     build
+else
+    HAIL_PKG_NOINSTALL=1
 fi
 cd $pkg_dir
 if [ -z ${HAIL_PKG_NOINSTALL+x} ]; then
     printf "\tHailbuild: install\n"
     install
+else
+    HAIL_PKG_NOPKG=1
 fi
 cd $pkg_dir
 if [ -z ${HAIL_PKG_NOPKG+x} ]; then

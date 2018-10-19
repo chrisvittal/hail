@@ -22,10 +22,15 @@ fetch() {
 }
 
 prepare() {
-    mkdir -p src && cd src
+    cd $src_dir
     for tarball in ../*.xz; do
         tar xf $tarball
     done
+
+    if [ -e $pkg_dir/prepared ]; then
+        printf "    Up to date: llvm sources...\n"
+        return;
+    fi
 
     mv cfe-$pkg_version.src $llvm_dir/tools/clang
     mv compiler-rt-$pkg_version.src $llvm_dir/projects/compiler-rt
@@ -33,6 +38,8 @@ prepare() {
     mv libcxxabi-$pkg_version.src $llvm_dir/projects/libcxxabi
 
     mkdir -p $llvm_dir/build
+
+    touch $pkg_dir/prepared
 }
 
 build() {
@@ -41,10 +48,24 @@ build() {
         -Wno-dev \
         -DPYTHON_EXECUTABLE=/usr/bin/python3 \
         -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX= \
+        -DCMAKE_INSTALL_PREFIX=/ \
+        -DCMAKE_INSTALL_LIBDIR=lib \
+        -DCLANG_BUILD_TOOLS=OFF \
+        -DCLANG_INCLUDE_DOCS=OFF \
+        -DCLANG_INSTALL_SCANBUILD=OFF \
+        -DCLANG_INSTALL_SCANVIEW=OFF \
+        -DCOMPILER_RT_BUILD_LIBFUZZER=OFF \
+        -DCOMPILER_RT_BUILD_PROFILE=OFF \
+        -DCOMPILER_RT_BUILD_SANITIZERS=OFF \
+        -DCOMPILER_RT_BUILD_XRAY=OFF \
+        -DCOMPILER_RT_USE_BUILTINS_LIBRARY=ON \
+        -DLLVM_ENABLE_LIBEDIT=OFF \
+        -DLLVM_ENABLE_TERMINFO=OFF \
+        -DLLVM_ENABLE_LIBXML2=OFF \
         -DLLVM_BUILD_LLVM_DYLIB=ON \
         -DLLVM_LINK_LLVM_DYLIB=ON \
         -DLLVM_ENABLE_OCAMLDOC=OFF \
+        -DLLVM_ENABLE_BINDINGS=OFF \
         -DLLVM_TARGETS_TO_BUILD="X86"
     ninja
 }
