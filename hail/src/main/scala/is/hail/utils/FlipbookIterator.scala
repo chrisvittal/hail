@@ -167,6 +167,8 @@ object FlipbookIterator {
             }
             i += 1
           }
+        } else { // FIXME if queue is not empty
+
         }
         value.clear()
         value += queue.dequeue()
