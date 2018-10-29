@@ -2,6 +2,7 @@ package is.hail.utils
 
 import scala.collection.GenTraversableOnce
 import scala.collection.generic.Growable
+import scala.collection.mutable.PriorityQueue
 import scala.reflect.ClassTag
 
 /**
@@ -138,6 +139,38 @@ object FlipbookIterator {
         i = 0; while (i < buf.length) {
           value(buf(i)) = staging(buf(i)).consume
           i += 1
+        }
+      }
+    }
+
+    sm.advance()
+    FlipbookIterator(sm)
+  }
+
+  def multiZipJoinPq[A: ClassTag](
+    its: Array[FlipbookIterator[A]],
+    ord: (A, A) => Int
+  ): FlipbookIterator[ArrayBuilder[(A, Int)]] = {
+    object TmpOrd extends Ordering[(A, Int)] {
+      def compare(x: (A, Int), y: (A, Int)): Int = ord(y._1, x._1)
+    }
+    val indexed = its.zipWithIndex
+    val sm = new StateMachine[ArrayBuilder[(A, Int)]] {
+      var queue: PriorityQueue[(A, Int)] = new PriorityQueue()(TmpOrd)
+      val value = new ArrayBuilder[(A, Int)](its.length)
+      var isValid = true
+      def advance() {
+        if (queue.isEmpty) { // if queue is empty try to fill it
+          var i = 0; while (i < its.length) {
+            if (indexed(i)._1.isValid) {
+              queue += indexed(i)._1.value -> indexed(i)._2
+            }
+            i += 1
+          }
+        }
+        value.clear()
+        value += queue.dequeue()
+        if (queue.isEmpty) {
         }
       }
     }

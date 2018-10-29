@@ -512,16 +512,16 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
         val len = rvs.length
         val rv = rvs.find(rv => rv != null).get
         rvb.set(rv.region)
-        rvb.start(localNewRowType)
+        rvb.start(localNewRowType.physicalType)
         rvb.startStruct()
-        rvb.addFields(rowType, rv, keyIdx) // Add the key
+        rvb.addFields(rowType.physicalType, rv, keyIdx) // Add the key
         rvb.startArray(len) // add the values
         var i = 0
         while (i < len) {
           val rv = rvs(i)
           if (rv != null) {
             rvb.startStruct()
-            rvb.addFields(rowType, rv, valIdx)
+            rvb.addFields(rowType.physicalType, rv, valIdx)
             rvb.endStruct()
           } else {
             rvb.setMissing()
