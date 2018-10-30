@@ -297,4 +297,43 @@ class FlipbookIteratorSuite extends SparkSuite {
 
     assert(zipped shouldBe it)
   }
+
+  @Test def multiZipJoinPqWorks() {
+    val one = makeTestIterator(1, 2, 2, 4, 5, 5, 1000, 1000)
+    val two = makeTestIterator(2, 3, 4, 5, 5, 6, 1000, 1000)
+    val three = makeTestIterator(2, 3, 4, 4, 5, 6, 1000, 1000)
+    val its: Array[FlipbookIterator[Box[Int]]] = Array(one, two, three)
+    val zipped = FlipbookIterator.multiZipJoinPq(its, boxIntOrd(missingValue = 1000))
+    def fillOut(ar: ArrayBuilder[(Box[Int], Int)], default: Box[Int]): Array[Box[Int]] = {
+      val a: Array[Box[Int]] = Array.fill(3)(default)
+      var i = 0; while (i < ar.size) {
+        var v = ar(i)
+        a(v._2) = v._1
+        i += 1
+      }
+      a
+    }
+
+    val comp = zipped.map(fillOut(_, Box(0)))
+
+    val it = Iterator(
+      Array(1, 0, 0),
+      Array(2, 2, 2),
+      Array(2, 0, 0),
+      Array(0, 3, 3),
+      Array(4, 4, 4),
+      Array(0, 0, 4),
+      Array(5, 5, 5),
+      Array(5, 5, 0),
+      Array(0, 6, 6),
+      Array(0, 1000, 0), // XXX the exact order of these fields may be unstable
+      Array(0, 1000, 0),
+      Array(0, 0, 1000),
+      Array(0, 0, 1000),
+      Array(1000, 0, 0),
+      Array(1000, 0, 0)
+    )
+
+    assert(comp shouldBe it)
+  }
 }

@@ -159,19 +159,22 @@ object FlipbookIterator {
       var q: PriorityQueue[(A, Int)] = new PriorityQueue()(TmpOrd)
       val value = new ArrayBuilder[(A, Int)](its.length)
       var isValid = true
+
       def advance() {
+        var i = 0; while (i < value.length) {
+          indexed(value(i)._2)._1.advance()
+          i += 1
+        }
         if (q.isEmpty) { // if queue is empty try to fill it
           var i = 0; while (i < its.length) {
-            indexed(i)._1.advance()
             if (indexed(i)._1.isValid) {
               q.enqueue(indexed(i)._1.value -> indexed(i)._2)
             }
             i += 1
           }
-        } else { // FIXME if queue is not empty
+        } else {
           var i = 0; while (i < value.length) {
-            val j = value(j)._2
-            indexed(j)._1.advance()
+            val j = value(i)._2
             if (indexed(j)._1.isValid) {
               q.enqueue(indexed(j)._1.value -> j)
             }
@@ -183,15 +186,17 @@ object FlipbookIterator {
           return
         }
         value.clear()
-        value += q.dequeue()
-        var done = false
-        while (!q.isEmpty || !done) {
+        val v = q.dequeue()
+        value += v
+        var done = q.isEmpty
+        while (!done) {
           val tmp = q.dequeue()
           if (ord(tmp._1, value(0)._1) != 0) {
             done = true
             q.enqueue(tmp)
           } else {
             value += tmp
+            done = q.isEmpty
           }
         }
       }
