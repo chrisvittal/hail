@@ -156,23 +156,43 @@ object FlipbookIterator {
     }
     val indexed = its.zipWithIndex
     val sm = new StateMachine[ArrayBuilder[(A, Int)]] {
-      var queue: PriorityQueue[(A, Int)] = new PriorityQueue()(TmpOrd)
+      var q: PriorityQueue[(A, Int)] = new PriorityQueue()(TmpOrd)
       val value = new ArrayBuilder[(A, Int)](its.length)
       var isValid = true
       def advance() {
-        if (queue.isEmpty) { // if queue is empty try to fill it
+        if (q.isEmpty) { // if queue is empty try to fill it
           var i = 0; while (i < its.length) {
+            indexed(i)._1.advance()
             if (indexed(i)._1.isValid) {
-              queue += indexed(i)._1.value -> indexed(i)._2
+              q.enqueue(indexed(i)._1.value -> indexed(i)._2)
             }
             i += 1
           }
         } else { // FIXME if queue is not empty
-
+          var i = 0; while (i < value.length) {
+            val j = value(j)._2
+            indexed(j)._1.advance()
+            if (indexed(j)._1.isValid) {
+              q.enqueue(indexed(j)._1.value -> j)
+            }
+            i += 1
+          }
+        }
+        if (q.isEmpty) {
+          isValid = false
+          return
         }
         value.clear()
-        value += queue.dequeue()
-        if (queue.isEmpty) {
+        value += q.dequeue()
+        var done = false
+        while (!q.isEmpty || !done) {
+          val tmp = q.dequeue()
+          if (ord(tmp._1, value(0)._1) != 0) {
+            done = true
+            q.enqueue(tmp)
+          } else {
+            value += tmp
+          }
         }
       }
     }
