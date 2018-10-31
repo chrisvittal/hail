@@ -146,6 +146,17 @@ compileScala {
     scalaCompileOptions.additionalParameters = ["-feature"] // , "-Xfatal-warnings"]
 }
 
+task execute(type:JavaExec) {
+    jvmArgs '-Xmx10g'
+    main = mainClass
+    classpath = sourceSets.main.runtimeClasspath
+    if (project.hasProperty('myargs')) {
+        args(myargs.split(','))
+    } else {
+        args('100', '1000000', '1000000000')
+    }
+}
+
 dependencies {
     compile 'org.scala-lang:scala-library:' + scalaVersion
     compile 'org.scala-lang:scala-reflect:' + scalaVersion
