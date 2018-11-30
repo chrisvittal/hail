@@ -43,8 +43,8 @@ class TestFileInputFormat extends hd.mapreduce.lib.input.TextInputFormat {
   }
 }
 
-class BGzipCodecSuite extends SparkSuite {
-  @Test def test() {
+class BGzipSuite extends SparkSuite {
+  @Test def testCodec() {
     sc.hadoopConfiguration.setLong("mapreduce.input.fileinputformat.split.minsize", 1L)
 
     val uncompPath = "src/test/resources/sample.vcf"
@@ -207,5 +207,15 @@ class BGzipCodecSuite extends SparkSuite {
         decompIS.virtualSeek(vOff)
       }
     }}
+  }
+
+  // Make sure that reading normal gzip file from the beginning throws a ZipException
+  @Test def testRegularGzip() {
+    val compPath = new hd.fs.Path("src/test/resources/x-chromosome.vcf.regular_gzip.gz")
+    val fs = compPath.getFileSystem(hadoopConf)
+    intercept[java.util.zip.ZipException] {
+      val is = new BGzipInputStream(fs.open(compPath))
+      is.close()
+    }
   }
 }

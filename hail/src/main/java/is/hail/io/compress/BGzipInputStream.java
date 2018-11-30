@@ -230,6 +230,11 @@ public class BGzipInputStream extends SplitCompressionInputStream {
         // find first block
         fillInputBuffer();
         boolean foundBlock = false;
+        // There must be a bgzip header at the start of the file, we will check for it in
+        // when we next try to decompress a block, generally in the class constructor.
+        if (inputBufferInPos == 0)
+            return;
+
         for (int i = 0; i < inputBufferSize - 1; ++i) {
             if ((inputBuffer[i] & 0xff) == 31
                     && (inputBuffer[i + 1] & 0xff) == 139) {
