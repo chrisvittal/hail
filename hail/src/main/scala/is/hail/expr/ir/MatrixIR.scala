@@ -2109,6 +2109,8 @@ case class MatrixUnionRows(unmappedChildren: IndexedSeq[MatrixIR]) extends Matri
   def copy(newChildren: IndexedSeq[BaseIR]): MatrixUnionRows =
     MatrixUnionRows(newChildren.asInstanceOf[IndexedSeq[MatrixIR]])
 
+  override def deepCopy(): this.type = copy(newChildren = unmappedChildren.map(_.deepCopy())).asInstanceOf[this.type]
+
   override def columnCount: Option[Int] =
     children.map(_.columnCount).reduce { (c1, c2) =>
       require(c1.forall { i1 => c2.forall(i1 == _) })

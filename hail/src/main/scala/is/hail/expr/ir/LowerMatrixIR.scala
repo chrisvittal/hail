@@ -159,9 +159,9 @@ object LowerMatrixIR {
 
     case MatrixRepartition(child, n, shuffle) => TableRepartition(lower(child), n, shuffle)
 
-    case MatrixUnionRows(children) =>
+    case x@MatrixUnionRows(_) =>
       // FIXME: this should check that all children have the same column keys.
-      TableUnion(children.map(lower))
+      TableUnion(x.children.map(lower))
 
     case MatrixDistinctByRow(child) => TableDistinct(lower(child))
 
