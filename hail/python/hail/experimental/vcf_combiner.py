@@ -1,32 +1,24 @@
 """A work in progress pipeline to combine (g)VCFs into an alternate format"""
 
 import hail as hl
-from hail.matrixtable import MatrixTable
+from hail.table import Table
 from hail.expr import ArrayExpression, StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
 from hail.ir import MatrixKeyRowsBy, TableKeyBy
 from hail.typecheck import typecheck
 
-
-def transform_one(mt: MatrixTable) -> MatrixTable:
-    """transforms a gvcf into a form suitable for combining"""
-    mt = mt.annotate_entries(
-        # local (alt) allele index into global (alt) alleles
-        LA=hl.range(0, hl.len(mt.alleles)),
-        END=mt.info.END,
-        BaseQRankSum=mt.info['BaseQRankSum'],
-        ClippingRankSum=mt.info['ClippingRankSum'],
-        MQ=mt.info['MQ'],
-        MQRankSum=mt.info['MQRankSum'],
-        ReadPosRankSum=mt.info['ReadPosRankSum'],
-    )
-    mt = mt.annotate_rows(
-        info=mt.info.annotate(
+# FIXME: do better with type information
+transform_row_type = hl.dtype('struct{locus: locus<GRCh38>, alleles: array<str>, rsid: str, qual: float64, filters: set<str>, info: struct{BaseQRankSum: float64, ClippingRankSum: float64, DP: int32, END: int32, ExcessHet: float64, MQ: float64, MQRankSum: float64, MQ_DP: int32, QUALapprox: int32, RAW_MQ: float64, ReadPosRankSum: float64, VarDP: int32}, __entries: array<struct{AD: array<int32>, DP: int32, GQ: int32, GT: call, MIN_DP: int32, PGT: call, PID: str, PL: array<int32>, SB: array<int32>}>}')
+transform_rows_f = hl.experimental.define_function(
+    lambda row: hl.struct(
+        alleles=row.alleles,
+        rsid=row.rsid,
+        info=row.info.annotate(
             SB_TABLE=hl.array([
-                hl.agg.sum(mt.entry.SB[0]),
-                hl.agg.sum(mt.entry.SB[1]),
-                hl.agg.sum(mt.entry.SB[2]),
-                hl.agg.sum(mt.entry.SB[3]),
+                hl.sum(row.__entries.map(lambda d: d.SB[0])),
+                hl.sum(row.__entries.map(lambda d: d.SB[1])),
+                hl.sum(row.__entries.map(lambda d: d.SB[2])),
+                hl.sum(row.__entries.map(lambda d: d.SB[3])),
             ])
         ).select(
             "MQ_DP",
@@ -34,15 +26,33 @@ def transform_one(mt: MatrixTable) -> MatrixTable:
             "RAW_MQ",
             "VarDP",
             "SB_TABLE",
-        ))
-    mt = mt.transmute_entries(
-        LGT=mt.GT,
-        LAD=mt.AD[0:],  # requiredness issues :'(
-        LPL=mt.PL[0:],
-        LPGT=mt.PGT)
-    mt = mt.drop('SB', 'qual', 'filters')
+        ),
+        __entries=row.__entries.map(
+            lambda e:
+            hl.struct(
+                BaseQRankSum=row.info['BaseQRankSum'],
+                ClippingRankSum=row.info['ClippingRankSum'],
+                DP=e.DP,
+                END=row.info.END,
+                GQ=e.GQ,
+                LA=hl.range(0, hl.len(row.alleles)),
+                LAD=e.AD,
+                LGT=e.GT,
+                LPGT=e.PGT,
+                LPL=e.PL,
+                MIN_DP=e.MIN_DP,
+                MQ=row.info['MQ'],
+                MQRankSum=row.info['MQRankSum'],
+                PID=e.PID,
+                ReadPosRankSum=row.info['ReadPosRankSum'],
+            )
+        )
+    ),
+    transform_row_type)
 
-    return mt
+def transform_one(mt: Table) -> Table:
+    """transforms a gvcf into a form suitable for combining"""
+    return mt.select(**transform_rows_f(mt.row))
 
 
 def merge_alleles(alleles) -> ArrayExpression:
@@ -120,11 +130,11 @@ def combine_gvcfs(mts):
                           .when(locus == mr.locus, hl.struct(ref=mr.alleles[0], alt=mr.alleles[1]))
                           .or_error("locus before and after minrep differ"))
 
-    mts = [mt.annotate_rows(
+    mts = [mt.annotate(
         # now minrep'ed (ref, alt) allele pairs
         alleles=hl.bind(lambda ref, locus: mt.alleles[1:].map(lambda alt: min_rep(locus, ref, alt)),
                         mt.alleles[0], mt.locus)) for mt in mts]
-    ts = hl.Table._multi_way_zip_join([localize(mt) for mt in mts], 'data', 'g')
+    ts = hl.Table._multi_way_zip_join([(mt) for mt in mts], 'data', 'g')
     combined = combine(ts)
     combined = combined.annotate(alleles=fix_alleles(combined.alleles))
     return combined._unlocalize_entries('__entries', '__cols', ['s'])
