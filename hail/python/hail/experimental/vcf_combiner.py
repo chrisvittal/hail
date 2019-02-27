@@ -4,55 +4,59 @@ import hail as hl
 from hail.table import Table
 from hail.expr import ArrayExpression, StructExpression
 from hail.expr.expressions import expr_call, expr_array, expr_int32
-from hail.ir import MatrixKeyRowsBy, TableKeyBy
+from hail.ir import TableKeyBy
 from hail.typecheck import typecheck
 
-# FIXME: do better with type information
-transform_row_type = hl.dtype('struct{locus: locus<GRCh38>, alleles: array<str>, rsid: str, qual: float64, filters: set<str>, info: struct{BaseQRankSum: float64, ClippingRankSum: float64, DP: int32, END: int32, ExcessHet: float64, MQ: float64, MQRankSum: float64, MQ_DP: int32, QUALapprox: int32, RAW_MQ: float64, ReadPosRankSum: float64, VarDP: int32}, __entries: array<struct{AD: array<int32>, DP: int32, GQ: int32, GT: call, MIN_DP: int32, PGT: call, PID: str, PL: array<int32>, SB: array<int32>}>}')
-transform_rows_f = hl.experimental.define_function(
-    lambda row: hl.struct(
-        alleles=row.alleles,
-        rsid=row.rsid,
-        info=row.info.annotate(
-            SB_TABLE=hl.array([
-                hl.sum(row.__entries.map(lambda d: d.SB[0])),
-                hl.sum(row.__entries.map(lambda d: d.SB[1])),
-                hl.sum(row.__entries.map(lambda d: d.SB[2])),
-                hl.sum(row.__entries.map(lambda d: d.SB[3])),
-            ])
-        ).select(
-            "MQ_DP",
-            "QUALapprox",
-            "RAW_MQ",
-            "VarDP",
-            "SB_TABLE",
-        ),
-        __entries=row.__entries.map(
-            lambda e:
-            hl.struct(
-                BaseQRankSum=row.info['BaseQRankSum'],
-                ClippingRankSum=row.info['ClippingRankSum'],
-                DP=e.DP,
-                END=row.info.END,
-                GQ=e.GQ,
-                LA=hl.range(0, hl.len(row.alleles)),
-                LAD=e.AD,
-                LGT=e.GT,
-                LPGT=e.PGT,
-                LPL=e.PL,
-                MIN_DP=e.MIN_DP,
-                MQ=row.info['MQ'],
-                MQRankSum=row.info['MQRankSum'],
-                PID=e.PID,
-                ReadPosRankSum=row.info['ReadPosRankSum'],
-            )
-        )
-    ),
-    transform_row_type)
+_transform_rows_function_map = {}
 
 def transform_one(mt: Table) -> Table:
     """transforms a gvcf into a form suitable for combining"""
-    return mt.select(**transform_rows_f(mt.row))
+    global _transform_rows_function_map
+    if mt.row.dtype not in _transform_rows_function_map:
+        f = hl.experimental.define_function(
+            lambda row: hl.struct(
+                alleles=row.alleles,
+                rsid=row.rsid,
+                info=row.info.annotate(
+                    SB_TABLE=hl.array([
+                        hl.sum(row.__entries.map(lambda d: d.SB[0])),
+                        hl.sum(row.__entries.map(lambda d: d.SB[1])),
+                        hl.sum(row.__entries.map(lambda d: d.SB[2])),
+                        hl.sum(row.__entries.map(lambda d: d.SB[3])),
+                    ])
+                ).select(
+                    "MQ_DP",
+                    "QUALapprox",
+                    "RAW_MQ",
+                    "VarDP",
+                    "SB_TABLE",
+                ),
+                __entries=row.__entries.map(
+                    lambda e:
+                    hl.struct(
+                        BaseQRankSum=row.info['BaseQRankSum'],
+                        ClippingRankSum=row.info['ClippingRankSum'],
+                        DP=e.DP,
+                        END=row.info.END,
+                        GQ=e.GQ,
+                        LA=hl.range(0, hl.len(row.alleles)),
+                        LAD=e.AD,
+                        LGT=e.GT,
+                        LPGT=e.PGT,
+                        LPL=e.PL,
+                        MIN_DP=e.MIN_DP,
+                        MQ=row.info['MQ'],
+                        MQRankSum=row.info['MQRankSum'],
+                        PID=e.PID,
+                        ReadPosRankSum=row.info['ReadPosRankSum'],
+                    )
+                )
+            ),
+            mt.row.dtype)
+        _transform_rows_function_map[mt.row.dtype] = f
+    transform_row = _transform_rows_function_map[mt.row.dtype]
+    mt = mt.select(tmp=hl.rbind(transform_row(mt.row), lambda a: a))
+    return mt.select(**mt.tmp)
 
 
 def merge_alleles(alleles) -> ArrayExpression:
