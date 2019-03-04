@@ -5,7 +5,7 @@ from hail.expr.expressions import construct_expr, anytype, expr_any, unify_all
 from hail.typecheck import typecheck
 
 
-class Function(object):
+class UserFunction(object):
     def __init__(self, f, name):
         self._f = f
         self._name = name
@@ -35,4 +35,4 @@ def define_function(f, *param_types):
         indices, aggregations = unify_all(*args)
         return construct_expr(Apply(mname, *(a._ir for a in args)), ret_type, indices, aggregations)
 
-    return Function(f, mname)
+    return UserFunction(f, mname)
