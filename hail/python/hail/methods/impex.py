@@ -2012,12 +2012,17 @@ def import_vcfs(path,
         filter,
         find_replace[0] if find_replace is not None else None,
         find_replace[1] if find_replace is not None else None)
+    hl.utils.java.info('START: python import_vcfs')
     tmp = json.loads(vector_ref_s)
     jir_vref = JIRVectorReference(tmp['vector_ir_id'],
                                   tmp['length'],
                                   hl.tmatrix._from_json(tmp['type']))
 
-    return [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
+    hl.utils.java.info('START: python import_vcfs mt construction')
+    ret = [MatrixTable(JavaMatrixVectorRef(jir_vref, idx)) for idx in range(len(jir_vref))]
+    hl.utils.java.info('END: python import_vcfs mt construction')
+    hl.utils.java.info('END: python import_vcfs')
+    return ret
 
 
 @typecheck(path=oneof(str, sequenceof(str)),

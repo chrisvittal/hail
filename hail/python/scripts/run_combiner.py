@@ -17,9 +17,7 @@ def chunks(seq, size):
 def run_combiner(sample_list, json, out_path, tmp_path, summary_path=None, overwrite=False):
     # make the temp path a directory, no matter what
     tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
-    hl.utils.java.info('START: import_vcfs')
     vcfs = hl.import_vcfs(sample_list, json, array_elements_required=False)
-    hl.utils.java.info('END: import_vcfs')
     hl.utils.java.info('START: transform_one')
     vcfs = [comb.transform_one(vcf) for vcf in vcfs]
     hl.utils.java.info('END: transform_one')
