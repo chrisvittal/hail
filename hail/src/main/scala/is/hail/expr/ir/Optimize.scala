@@ -9,10 +9,18 @@ object Optimize {
       log.info(s"optimize$contextStr: before: IR size ${ IRSize(ir0) }: \n" + Pretty(ir0, elideLiterals = true))
 
     var ir = ir0
+    log.info(s"START: FoldConstants $contextStr")
     ir = FoldConstants(ir, canGenerateLiterals = canGenerateLiterals)
+    log.info(s"END: FoldConstants $contextStr")
+    log.info(s"START: Simplify $contextStr")
     ir = Simplify(ir)
+    log.info(s"END: Simplify $contextStr")
+    log.info(s"START: PruneDeadFields $contextStr")
     ir = PruneDeadFields(ir)
+    log.info(s"END: PruneDeadFields $contextStr")
+    log.info(s"START: Simplify (2) $contextStr")
     ir = Simplify(ir)
+    log.info(s"END: Simplify (2) $contextStr")
 
     if (ir.typ != ir0.typ)
       fatal(s"optimization changed type!\n  before: ${ ir0.typ }\n  after:  ${ ir.typ }" +

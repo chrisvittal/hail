@@ -58,7 +58,9 @@ object PruneDeadFields {
   def apply(ir: BaseIR): BaseIR = {
 
     try {
+      log.info("START: PruneDeadFields deepCopy")
       val irCopy = ir.deepCopy()
+      log.info("END: PruneDeadFields deepCopy")
       val memo = Memo.empty[BaseType]
       irCopy match {
         case mir: MatrixIR =>
