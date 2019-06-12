@@ -4,7 +4,6 @@ steps:
    namespaceName: default
    public: true
    secrets:
-    - scorecard-github-access-token
     - hail-vdc-sa-key
     - notebook-secrets
     - gcr-pull-key
@@ -196,6 +195,8 @@ steps:
        to: /testng.xml
      - from: /io/repo/hail/testng-cpp-codegen.xml
        to: /testng-cpp-codegen.xml
+     - from: /io/repo/scheduler/testng.xml
+       to: /testng-scheduler.xml
      - from: /io/repo/hail/python/hail.zip
        to: /hail.zip
      - from: /io/repo/hail/test.tar.gz
@@ -277,6 +278,26 @@ steps:
       to: /hail.jar
     - from: /hail.zip
       to: /hail.zip
+ - kind: buildImage
+   name: hail_test_base_image
+   dockerFile: apiserver/Dockerfile.hail-test-base
+   contextPath: .
+   publishAs: hail-test-base
+   dependsOn:
+    - hail_run_image
+    - build_hail
+   inputs:
+    - from: /hail-test.jar
+      to: /hail-test.jar
+    - from: /hail.zip
+      to: /hail.zip
+ - kind: buildImage
+   name: scheduler_image
+   dockerFile: scheduler/Dockerfile
+   contextPath: scheduler
+   publishAs: scheduler
+   dependsOn:
+    - base_image
  - kind: buildImage
    name: hail_jupyter_image
    dockerFile: apiserver/Dockerfile.hail-jupyter
@@ -377,7 +398,6 @@ steps:
    config: router/deployment.yaml
    link:
     - www
-    - scorecard
     - notebook2
     - ci
    dependsOn:
@@ -397,10 +417,33 @@ steps:
    namespace:
      valueFrom: default_ns.name
    config: scorecard/deployment.yaml
+   scopes:
+    - deploy
    dependsOn:
     - default_ns
     - scorecard_image
     - deploy_router
+ - kind: createDatabase
+   name: ci_database
+   databaseName: ci
+   namespace:
+     valueFrom: default_ns.name
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: create_ci_tables
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/create-ci-tables-pod.yaml
+   wait:
+    - kind: Pod
+      name: create-ci-tables
+      for: completed
+      timeout: 120
+   dependsOn:
+     - default_ns
+     - base_image
+     - ci_database
  - kind: deploy
    name: deploy_ci
    namespace:
@@ -415,6 +458,8 @@ steps:
     - ci_image
     - ci_utils_image
     - create_accounts
+    - ci_database
+    - create_ci_tables
  - kind: createDatabase
    name: batch_database
    databaseName: batch
@@ -551,6 +596,27 @@ steps:
     - setup_pipeline    
     - test_pipeline
  - kind: deploy
+   name: deploy_scheduler
+   namespace:
+     valueFrom: default_ns.name
+   config: scheduler/deployment.yaml
+   wait:
+    - kind: Service
+      name: scheduler
+      port: 80
+      for: alive
+   dependsOn:
+    - default_ns
+    - scheduler_image
+ - kind: deploy
+   name: deploy_executors
+   namespace:
+     valueFrom: default_ns.name
+   config: scheduler/executors.yaml
+   dependsOn:
+    - default_ns
+    - hail_test_base_image
+ - kind: deploy
    name: deploy_notebook2
    namespace:
      valueFrom: default_ns.name
@@ -560,6 +626,24 @@ steps:
     - notebook2_image
     - hail_jupyter_image
     - deploy_router
+ - kind: runImage
+   name: test_scheduler
+   image:
+     valueFrom: base_image.image
+   script: |
+     set -ex
+     HAIL_TEST_SCHEDULER_HOST=scheduler.{{ default_ns.name }}.svc.cluster.local CLASSPATH="$SPARK_HOME/jars/*:/io/hail-test.jar" java org.testng.TestNG -listener is.hail.LogTestListener /io/testng-scheduler.xml
+   inputs:
+    - from: /hail-test.jar
+      to: /io/hail-test.jar
+    - from: /testng-scheduler.xml
+      to: /io/testng-scheduler.xml
+   dependsOn:
+    - default_ns
+    - base_image
+    - build_hail
+    - deploy_scheduler
+    - deploy_executors
  - kind: runImage
    name: create_ci_test_repo
    image:

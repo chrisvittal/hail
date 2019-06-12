@@ -86,20 +86,16 @@ abstract class RelationalSpec {
 }
 
 case class RVDComponentSpec(rel_path: String) extends ComponentSpec {
+  def absolutePath(path: String): String = path + "/" + rel_path
+
   def rvdSpec(fs: is.hail.io.fs.FS, path: String): AbstractRVDSpec =
-    AbstractRVDSpec.read(fs, path + "/" + rel_path)
+    AbstractRVDSpec.read(fs, absolutePath(path))
 
-  def read(hc: HailContext, path: String, requestedType: PStruct): RVD = {
-    val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.sFS, path)
-      .read(hc, rvdPath, requestedType)
-  }
+  def read(hc: HailContext, path: String, requestedType: PStruct): RVD =
+    rvdSpec(hc.sFS, path).read(hc, absolutePath(path), requestedType)
 
-  def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] = {
-    val rvdPath = path + "/" + rel_path
-    rvdSpec(hc.sFS, path)
-      .readLocal(hc, rvdPath, requestedType)
-  }
+  def readLocal(hc: HailContext, path: String, requestedType: PStruct): IndexedSeq[Row] =
+    rvdSpec(hc.sFS, path).readLocal(hc, absolutePath(path), requestedType)
 }
 
 case class PartitionCountsComponentSpec(counts: Seq[Long]) extends ComponentSpec
