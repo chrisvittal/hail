@@ -185,6 +185,10 @@ install-editable: python/README.md python/hail/hail-all-spark.jar
 	-$(PIP) uninstall -y hail
 	cd python && $(PIP) install -e .
 
+.PHONY: update-editable
+update-editable: $(PYTHON_VERSION_INFO) $(INIT_SCRIPTS)
+update-editable: python/README.md python/hail/hail-all-spark.jar
+
 .PHONY: install
 install: $(WHEEL)
 	-$(PIP) uninstall -y hail
