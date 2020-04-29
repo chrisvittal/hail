@@ -890,22 +890,34 @@ class EmitMethodBuilder[C](
 
   def invokeCode[T](args: Param*): Code[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
-    mb.invoke(args.flatMap {
-      case CodeParam(c) => FastIndexedSeq(c)
-      case EmitParam(ec) =>
-        ec.codeTuple()
-    }: _*)
+    val setup = Code(args.map {
+      case CodeParam(_) => Code._empty
+      case EmitParam(ec) => ec.setup
+    })
+    Code(
+      setup,
+      mb.invoke(args.flatMap {
+        case CodeParam(c) => FastIndexedSeq(c)
+        case EmitParam(ec) =>
+          ec.codeTuple()
+      }: _*))
   }
 
   def invokeEmit(args: Param*): EmitCode = {
     val pt = emitReturnType.asInstanceOf[EmitParamType].pt
     val r = Code.newLocal("invokeEmit_r")(pt.codeReturnType())
+    val setup = Code(args.map {
+      case CodeParam(_) => Code._empty
+      case EmitParam(ec) => ec.setup
+    })
 
-    EmitCode(r := mb.invoke(args.flatMap {
-      case CodeParam(c) => FastIndexedSeq(c)
-      case EmitParam(ec) =>
-        ec.codeTuple()
-    }: _*),
+    EmitCode(Code(
+      setup,
+      r := mb.invoke(args.flatMap {
+        case CodeParam(c) => FastIndexedSeq(c)
+        case EmitParam(ec) =>
+          ec.codeTuple()
+      }: _*)),
       EmitCode.fromCodeTuple(pt, Code.loadTuple(modb, EmitCode.codeTupleTypes(pt), r)))
   }
 
