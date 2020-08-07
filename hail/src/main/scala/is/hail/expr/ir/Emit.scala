@@ -542,9 +542,8 @@ class Emit[C](
         cb.assign(ib, Code._null)
 
       case Die(m, typ) =>
-        val cm = emitI(m)
         val msg = cb.newLocal[String]("exmsg", "<exception message missing>")
-        cm.consume(cb, {}, s => cb.assign(msg, s.asString.loadString()))
+        emitI(m).consume(cb, {}, s => cb.assign(msg, s.asString.loadString()))
         cb._throw(Code.newInstance[HailException, String](msg))
 
       case x@WriteMetadata(annotations, writer) =>
@@ -678,6 +677,12 @@ class Emit[C](
             f((lm, lm.mux(defaultValue(l.pType), lc.code)),
               (rm, rm.mux(defaultValue(r.pType), rc.code))))
         }
+
+      case Die(m, typ) =>
+        val msg = cb.newLocal("die_msg", "<execption message missing>")
+        emitI(m).consume(cb, {}, s => cb.assign(msg, s.asString.loadString()))
+        cb._throw(Code.newInstance[HailException, String](msg))
+        presentPC(pt.defaultValue)
 
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
@@ -1508,17 +1513,6 @@ class Emit[C](
         val ev = mb.getEmitParam(2 + i)
         assert(ev.pt == expectedPType)
         ev
-      case Die(m, typ) =>
-        val cm = emit(m)
-        EmitCode(
-          Code(
-            cm.setup,
-            Code._throw[HailException, Unit](Code.newInstance[HailException, String](
-              cm.m.mux[String](
-                "<exception message missing>",
-                coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region), m.pType)(cm.v)))))),
-          true,
-          pt.defaultValue)
 
       case ir@Apply(fn, typeArgs, args, rt) =>
         val impl = ir.implementation
