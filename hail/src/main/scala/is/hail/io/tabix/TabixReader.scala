@@ -443,7 +443,12 @@ final class TabixLineIterator(
           return s
         }
         if (i < 0 || offsets(i)._2 != offsets(i + 1)._1) {
-          virtualSeek(offsets(i + 1)._1)
+          try {
+            virtualSeek(offsets(i + 1)._1)
+          } catch {
+            case io: java.io.IOException =>
+              throw new RuntimeException(s"error seeking in tabix indexed file $filePath: i=$i", io)
+          }
         }
         i += 1
       }

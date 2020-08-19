@@ -282,7 +282,9 @@ public class BGzipInputStream extends SplitCompressionInputStream {
     public void virtualSeek(final long pos) throws IOException {
         final long compOff = BlockCompressedFilePointerUtil.getBlockAddress(pos);
         final int uncompOff = BlockCompressedFilePointerUtil.getBlockOffset(pos);
-        if (inputBufferInPos != compOff) {
+        if (inputBufferInPos != compOff || compOff == 0) {
+            // The zero check here is to ensure that we always have a bgzip block decompressed in
+            // case the first thing after construction is a call to virtualSeek with compOff of 0
             if (in instanceof org.apache.hadoop.fs.Seekable)
                 ((org.apache.hadoop.fs.Seekable) in).seek(compOff);
             else {
