@@ -3,7 +3,7 @@ package is.hail.io.tabix
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
 
-import htsjdk.samtools.util.FileExtensions
+import htsjdk.samtools.util.{BlockCompressedFilePointerUtil, FileExtensions}
 import htsjdk.tribble.util.ParsingUtils
 import is.hail.io.compress.BGzipInputStream
 import is.hail.io.fs.FS
@@ -24,6 +24,14 @@ class Tabix(
   val chr2tid: mutable.HashMap[String, Int],
   val indices: Array[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])]
 )
+
+case class VOff(_1: Long) {
+  override def toString(): String = {
+    val abs = BlockCompressedFilePointerUtil.getBlockAddress(_1)
+    val off = BlockCompressedFilePointerUtil.getBlockOffset(_1)
+    s"voff($abs,$off)"
+  }
+}
 
 case class TbiPair(var _1: Long, var _2: Long) extends java.lang.Comparable[TbiPair] {
   @Override
@@ -436,7 +444,8 @@ final class TabixLineIterator(
 
         if (i >= 0 && curOff != offsets(i)._2)
           throw new RuntimeException(s"error reading tabix-indexed file $filePath: " +
-            s"i=$i, curOff=$curOff, expected=${ offsets(i)._2 }")
+            s"i=$i, curOff=$curOff;${ VOff(curOff) }, " +
+            s"expected=${ offsets(i)._2 };${ VOff(offsets(i)._2) }")
 
         if (i == offsets.length - 1) {
           isEof = true

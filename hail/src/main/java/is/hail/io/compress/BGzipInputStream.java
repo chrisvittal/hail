@@ -2,6 +2,7 @@ package is.hail.io.compress;
 
 import htsjdk.samtools.util.BlockCompressedFilePointerUtil;
 import is.hail.io.fs.Seekable;
+import is.hail.io.tabix.VOff;
 import org.apache.hadoop.io.compress.SplitCompressionInputStream;
 import org.apache.hadoop.io.compress.SplittableCompressionCodec;
 import java.io.ByteArrayInputStream;
@@ -299,7 +300,7 @@ public class BGzipInputStream extends SplitCompressionInputStream {
             assert(inputBufferInPos == compOff);
         }
         if (uncompOff > outputBufferSize || (outputBufferSize > 0 && uncompOff == outputBufferSize)) {
-            throw new IOException("Invalid virtual offset: " + pos);
+            throw new IOException("Invalid virtual offset: " + pos + ";" + new VOff(pos));
         }
         outputBufferPos = uncompOff;
     }
