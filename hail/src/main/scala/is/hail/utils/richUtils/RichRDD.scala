@@ -10,7 +10,7 @@ import is.hail.utils._
 import is.hail.io.compress.{BGzipCodec, ComposableBGzipCodec, ComposableBGzipOutputStream}
 import is.hail.io.fs.FS
 import org.apache.hadoop
-import org.apache.hadoop.io.compress.CompressionCodecFactory
+import org.apache.hadoop.io.compress.{CompressionCodecFactory, CompressionCodec}
 import org.apache.spark.{NarrowDependency, Partition, Partitioner, TaskContext}
 import org.apache.spark.rdd.RDD
 
@@ -31,15 +31,20 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
     Iterator(it.exists(p))
   }.fold(false)(_ || _)
 
-  def writeTable(ctx: ExecuteContext, filename: String, header: Option[String] = None, exportType: String = ExportType.CONCATENATED) {
-    val hConf = r.sparkContext.hadoopConfiguration
-    val codecFactory = new CompressionCodecFactory(hConf)
-    val codec = {
-      val codec = codecFactory.getCodec(new hadoop.fs.Path(filename))
-      if (codec != null && codec.isInstanceOf[BGzipCodec] && exportType == ExportType.PARALLEL_COMPOSABLE)
-        new ComposableBGzipCodec
-      else
+  def writeTable(ctx: ExecuteContext, filename: String, header: Option[String] = None,
+    exportType: String = ExportType.CONCATENATED, overrideCodec: Option[CompressionCodec] = None)
+  {
+    val codec = overrideCodec match {
+      case Some(codec) =>
         codec
+      case None =>
+        val hConf = r.sparkContext.hadoopConfiguration
+        val codecFactory = new CompressionCodecFactory(hConf)
+        val codec = codecFactory.getCodec(new hadoop.fs.Path(filename))
+        if (codec != null && codec.isInstanceOf[BGzipCodec] && exportType == ExportType.PARALLEL_COMPOSABLE)
+          new ComposableBGzipCodec
+        else
+          codec
     }
 
     val fs = ctx.fs
