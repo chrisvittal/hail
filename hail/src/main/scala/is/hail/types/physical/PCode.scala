@@ -42,6 +42,8 @@ abstract class PCode { self =>
     code.asInstanceOf[Code[T]]
   }
 
+  def toEmit: EmitCode = EmitCode.present(self)
+
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit]
 
   def allocateAndStore(mb: EmitMethodBuilder[_], r: Value[Region]): (Code[Unit], Code[Long]) = {

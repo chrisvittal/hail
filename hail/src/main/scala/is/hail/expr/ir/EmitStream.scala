@@ -1188,23 +1188,29 @@ object EmitStream {
           childSource = stream(holdingRegion)(
             xInOuter.mux(LouterEos.goto, Code(xEOS := true, LinnerEos.goto)),
             { a: PCode =>
-              Code(
-                xCurElt := a,
-                // !xInOuter iff this element was requested by an inner stream.
-                // Else we are stepping to the beginning of the next group.
-                (xCurKey.tcode[Long].cne(0L) && ordering.equivNonnull(xCurKey.tcode[Long], xCurElt.tcode[Long])).mux(
-                  xInOuter.mux(
-                    Code(holdingRegion.clear(), LchildPull.goto),
-                    LinnerPush.goto),
-                  Code(
-                    keyRegion.clear(),
-                    xCurKey := {
-                      val pc = new PSubsetStructCode(keyViewType, xCurElt.tcode[Long])
-                      pc.castTo(mb, keyRegion.code, keyType)
-                    },
-                    xInOuter.mux(
-                      LouterPush.goto,
-                      Code(xNextGrpReady := true, LinnerEos.goto)))))
+              EmitCodeBuilder.scopedCode(ctx.mb) { cb =>
+                cb.assign(xCurElt, a)
+                cb.ifx(xCurKey.tcode[Long].cne(0L) && ordering.equivNonnull(cb, xCurKey, xCurElt), {
+                  cb.ifx(xInOuter, {
+                    cb += holdingRegion.clear()
+                    cb.goto(LchildPull)
+                  }, {
+                    cb.goto(LinnerPush)
+                  })
+                }, {
+                  cb += keyRegion.clear()
+                  cb.assign(xCurKey, {
+                    val pc = new PSubsetStructCode(keyViewType, xCurElt.tcode[Long])
+                    pc.castTo(cb.emb, keyRegion.code, keyType)
+                  })
+                  cb.ifx(xInOuter, {
+                    cb.goto(LouterPush)
+                  }, {
+                    cb.assign(xNextGrpReady, true)
+                    cb.goto(LinnerEos)
+                  })
+                })
+              }
             })
 
           Code(LinnerPush, holdingRegion.giveToSibling(innerEltRegion), innerPush(xCurElt))

@@ -359,7 +359,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def v: Code[_] = pv.code
 
-  def value[T]: Code[T] = coerce[T](v)
+  def value[T]: Code[T] = pv.tcode[T]
 
   def map(f: PCode => PCode): EmitCode = EmitCode(setup, m, pv = f(pv))
 
@@ -729,13 +729,11 @@ class Emit[C](
       case ApplyComparisonOp(op, l, r) =>
         val f = op.codeOrdering(mb, l.pType, r.pType)
         if (op.strict) {
-          emitI(l).flatMap(cb)(l => emitI(r).map(cb)(r => PCode(pt, f((false, l.code), (false, r.code)))))
+          emitI(l).flatMap(cb)(l => emitI(r).map(cb)(r => PCode(pt, f(cb, l.toEmit, r.toEmit))))
         } else {
           val lc = emitI(l).memoize(cb, "l")
           val rc = emitI(r).memoize(cb, "r")
-          presentC(
-            f((lc.m, lc.v),
-              (rc.m, rc.v)))
+          presentC(f(cb, lc, rc))
         }
 
       case x@ArrayRef(a, i, s) =>
@@ -1069,7 +1067,7 @@ class Emit[C](
 
           val shapeBuilder = pndVal.pt.makeShapeBuilder(shapeArray)
           val stridesBuilder = pndVal.pt.makeColumnMajorStridesBuilder(shapeArray, mb)
-          
+
           PCode(pndVal.pt, pndVal.pt.construct(shapeBuilder, stridesBuilder, Aaddr, mb, region.code))
         }
       case x@NDArraySVD(nd, full_matrices, computeUV) =>

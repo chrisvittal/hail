@@ -73,30 +73,27 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     new CodeOrderingCompareConsistentWithOthers {
-      type T = Long
       val bincmp = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary].codeOrdering(mb)
 
-      override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
-        val c1 = mb.newLocal[Long]("c1")
-        val c2 = mb.newLocal[Long]("c2")
+      override def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+        val codeRG = cb.emb.getReferenceGenome(rg)
+        val lhs = x.asLocus.memoize(cb, "locus_ord_lhs")
+        val rhs = y.asLocus.memoize(cb, "locus_ord_rhs")
+        val cmp = cb.newLocal("cmp", 0)
 
-        val s1 = contigType.loadString(c1)
-        val s2 = contigType.loadString(c2)
+        val clhs = lhs.contig().asBytes()
+        val crhs = rhs.contig().asBytes()
 
-        val cmp = bincmp.compareNonnull(coerce[bincmp.T](c1), coerce[bincmp.T](c2))
-        val codeRG = mb.getReferenceGenome(rg)
-
-        Code.memoize(x, "plocus_code_ord_x", y, "plocus_code_ord_y") { (x, y) =>
-          val p1 = Region.loadInt(representation.fieldOffset(x, 1))
-          val p2 = Region.loadInt(representation.fieldOffset(y, 1))
-
-          Code(
-            c1 := representation.loadField(x, 0),
-            c2 := representation.loadField(y, 0),
-            cmp.ceq(0).mux(
-              Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", p1, p2),
-              codeRG.invoke[String, String, Int]("compare", s1, s2)))
-        }
+        cb.ifx(bincmp.compareNonnull(cb, clhs, crhs).ceq(0), {
+          cb.assign(cmp,
+            Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
+              "compare", lhs.position(), rhs.position()))
+        }, {
+          cb.assign(cmp, codeRG.invoke[String, String, Int]("compare",
+            lhs.contig().loadString(),
+            rhs.contig().loadString()))
+        })
+        cmp
       }
     }
   }

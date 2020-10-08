@@ -123,9 +123,8 @@ abstract class PIntervalValue extends PValue {
     val start = cb.memoize(loadStart(cb), "start")
     val end = cb.memoize(loadEnd(cb), "end")
     (includesStart() && includesEnd()).mux(
-      gt((start.m, start.v), (end.m, end.v)),
-      gteq((start.m, start.v), (end.m, end.v))
-    )
+      gt(cb, start, end),
+      gteq(cb, start,end))
   }
 }
 
