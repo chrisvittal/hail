@@ -700,6 +700,85 @@ def run_combiner(sample_paths: List[str],
     info("Finished!")
 
 
+def run_intermediate_combiner(mt_paths: List[str],
+                              out_file: str,
+                              tmp_path: str,
+                              *,
+                              branch_factor: int = CombinerConfig.default_branch_factor,
+                              batch_size: int = CombinerConfig.default_batch_size,
+                              target_records: int = CombinerConfig.default_target_records,
+                              reference_genome: str = 'default',
+                              overwrite: bool = False,
+                              key_by_locus_and_alleles: bool = False):
+    tmp_path += f'/combiner-temporary/{uuid.uuid4()}/'
+    config = CombinerConfig(branch_factor=branch_factor,
+                            batch_size=batch_size,
+                            target_records=target_records)
+    plan = config.plan(len(mt_paths))
+
+    files_to_merge = mt_paths
+    n_phases = len(plan.phases)
+    total_ops = len(files_to_merge) * n_phases
+    total_work_done = 0
+    for phase_i, phase in enumerate(plan.phases):
+        phase_i += 1  # used for info messages, 1-indexed for readability
+
+        n_jobs = len(phase.jobs)
+        merge_str = 'input GVCFs' if phase_i == 1 else 'intermediate sparse matrix tables'
+        job_str = hl.utils.misc.plural('job', n_jobs)
+        info(f"Starting phase {phase_i}/{n_phases}, merging {len(files_to_merge)} {merge_str} in {n_jobs} {job_str}.")
+
+        intervals = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]).rows(),
+                                            config.target_records,
+                                            reference_genome=reference_genome)
+
+        new_files_to_merge = []
+
+        for job_i, job in enumerate(phase.jobs):
+            job_i += 1  # used for info messages, 1-indexed for readability
+
+            n_merges = len(job.merges)
+            merge_str = hl.utils.misc.plural('file', n_merges)
+            pct_total = 100 * job.input_total_size / total_ops
+            info(
+                f"Starting phase {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)} to create {n_merges} merged {merge_str}, corresponding to ~{pct_total:.1f}% of total I/O.")
+            merge_mts: List[MatrixTable] = []
+            for merge in job.merges:
+                inputs = [files_to_merge[i] for i in merge.inputs]
+
+                mts = [hl.read_matrix_table(path, _intervals=intervals) for path in inputs]
+
+                merge_mts.append(combine_gvcfs(mts))
+
+            if phase_i == n_phases:  # final merge!
+                assert n_jobs == 1
+                assert len(merge_mts) == 1
+                [final_mt] = merge_mts
+
+                if key_by_locus_and_alleles:
+                    final_mt = MatrixTable(MatrixKeyRowsBy(final_mt._mir, ['locus', 'alleles'], is_sorted=True))
+                final_mt.write(out_file, overwrite=overwrite)
+                new_files_to_merge = [out_file]
+                info(f"Finished phase {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)}, 100% of total I/O finished.")
+                break
+
+            tmp = f'{tmp_path}_phase{phase_i}_job{job_i}/'
+            hl.experimental.write_matrix_tables(merge_mts, tmp, overwrite=True)
+            pad = len(str(len(merge_mts)))
+            new_files_to_merge.extend(tmp + str(n).zfill(pad) + '.mt' for n in range(len(merge_mts)))
+            total_work_done += job.input_total_size
+            info(
+                f"Finished {phase_i}/{n_phases}, job {job_i}/{len(phase.jobs)}, {100 * total_work_done / total_ops:.1f}% of total I/O finished.")
+
+        info(f"Finished phase {phase_i}/{n_phases}.")
+
+        files_to_merge = new_files_to_merge
+
+    assert files_to_merge == [out_file]
+
+    info("Finished!")
+
+
 def parse_sample_mapping(sample_map_path: str) -> Tuple[List[str], List[str]]:
     sample_names: List[str] = list()
     sample_paths: List[str] = list()
