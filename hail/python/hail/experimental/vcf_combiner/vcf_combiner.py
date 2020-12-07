@@ -724,7 +724,7 @@ def run_intermediate_combiner(mt_paths: List[str],
         phase_i += 1  # used for info messages, 1-indexed for readability
 
         n_jobs = len(phase.jobs)
-        merge_str = 'input GVCFs' if phase_i == 1 else 'intermediate sparse matrix tables'
+        merge_str = 'sparse matrix tables'
         job_str = hl.utils.misc.plural('job', n_jobs)
         info(f"Starting phase {phase_i}/{n_phases}, merging {len(files_to_merge)} {merge_str} in {n_jobs} {job_str}.")
 
