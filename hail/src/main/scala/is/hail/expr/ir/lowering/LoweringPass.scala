@@ -25,7 +25,7 @@ case class OptimizePass(_context: String) extends LoweringPass {
   val context = s"optimize: ${_context}"
   val before: IRState = AnyIR
   val after: IRState = AnyIR
-  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, true, context, ctx)
+  def transform(ctx: ExecuteContext, ir: BaseIR): BaseIR = Optimize(ir, false, context, ctx)
 }
 
 case object LowerMatrixToTablePass extends LoweringPass {
