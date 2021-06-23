@@ -138,7 +138,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     val xty = cb.newLocal[Long]("linreg_agg_seqop_xty")
     val xtx = cb.newLocal[Long]("linreg_agg_seqop_xtx")
 
-    val x = xc.memoize(cb, "lra_seqop_x").asInstanceOf[SIndexableValue]
+    val x = xc.memoize(cb, "lra_seqop_x").asInstanceOf[SIndexablePointerSettable]
 
     cb.ifx(!x.hasMissingValues(cb),
       {
@@ -151,36 +151,35 @@ class LinearRegressionAggregator() extends StagedAggregator {
           case SIndexablePointer(pt: PCanonicalArray) =>
             assert(pt.elementType.isInstanceOf[PFloat64])
 
-            val xAddr = x.asInstanceOf[SIndexablePointerSettable].a
             val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr")
             val xptr2 = cb.newLocal[Long]("linreg_agg_seqop_xptr2")
-            cb.assign(xptr, pt.firstElementOffset(xAddr, k))
+            cb.assign(xptr, x.elementsAddress)
             cb.whileLoop(i < k,
               {
                 cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * y))
                 cb.assign(i, i + 1)
-                cb.assign(sptr, sptr + scalar.byteSize)
-                cb.assign(xptr, xptr + scalar.byteSize)
+                cb.assign(sptr, sptr + vector.elementByteSize)
+                cb.assign(xptr, xptr + vector.elementByteSize)
               })
 
             cb.assign(i, 0)
             cb.assign(sptr, vector.firstElementOffset(xtx, k))
-            cb.assign(xptr, pt.firstElementOffset(xAddr, k))
+            cb.assign(xptr, x.elementsAddress)
 
             cb.whileLoop(i < k,
               {
                 cb.assign(j, 0)
-                cb.assign(xptr2, pt.firstElementOffset(xAddr, k))
+                cb.assign(xptr2, x.elementsAddress)
                 cb.whileLoop(j < k,
                   {
                     // add x[i] * x[j] to the value at sptr
                     cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * Region.loadDouble(xptr2)))
                     cb.assign(j, j + 1)
-                    cb.assign(sptr, sptr + scalar.byteSize)
-                    cb.assign(xptr2, xptr2 + scalar.byteSize)
+                    cb.assign(sptr, sptr + vector.elementByteSize)
+                    cb.assign(xptr2, xptr2 + vector.elementByteSize)
                   })
                 cb.assign(i, i + 1)
-                cb.assign(xptr, xptr + scalar.byteSize)
+                cb.assign(xptr, xptr + vector.elementByteSize)
               })
 
           case _ =>
@@ -188,7 +187,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
               {
                 cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * y)
                 cb.assign(i, i + 1)
-                cb.assign(sptr, sptr + scalar.byteSize)
+                cb.assign(sptr, sptr + vector.elementByteSize)
               })
 
             cb.assign(i, 0)
@@ -203,7 +202,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
                     cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
                       (x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * x.loadElement(cb, j).get(cb).asDouble.doubleCode(cb)))
                     cb.assign(j, j + 1)
-                    cb.assign(sptr, sptr + scalar.byteSize)
+                    cb.assign(sptr, sptr + vector.elementByteSize)
                   })
                 cb.assign(i, i + 1)
               })
@@ -247,8 +246,8 @@ class LinearRegressionAggregator() extends StagedAggregator {
       Code.whileLoop(i < n, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
-        sptr := sptr + scalar.byteSize,
-        optr := optr + scalar.byteSize)),
+        sptr := sptr + vector.elementByteSize,
+        optr := optr + vector.elementByteSize)),
 
       n := vector.loadLength(xtx),
       i := 0,
@@ -257,8 +256,8 @@ class LinearRegressionAggregator() extends StagedAggregator {
       Code.whileLoop(i < n, Code(
         Region.storeDouble(sptr, Region.loadDouble(sptr) + Region.loadDouble(optr)),
         i := i + 1,
-        sptr := sptr + scalar.byteSize,
-        optr := optr + scalar.byteSize))))
+        sptr := sptr + vector.elementByteSize,
+        optr := optr + vector.elementByteSize))))
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
