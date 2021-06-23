@@ -148,8 +148,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
     }
 
-  private def elementOffsetFromFirst(firstElementAddr: Code[Long], i: Code[Int]): Code[Long] = firstElementAddr + i.toL * const(elementByteSize)
-
   def nextElementAddress(currentOffset: Long) =
     currentOffset + elementByteSize
 
@@ -458,7 +456,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       f(cb, i).consume(cb,
         cb += setElementMissing(addr, i),
         { sc =>
-          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
+          elementType.storeAtAddress(cb, elementOffsetFromBase(firstElementAddr, i), region, sc, deepCopy = deepCopy)
         })
 
       cb.assign(i, i + 1)

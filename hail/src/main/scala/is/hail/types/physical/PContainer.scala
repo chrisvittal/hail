@@ -52,6 +52,9 @@ abstract class PContainer extends PIterable {
 
   def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long]
 
+  final def elementOffsetFromBase(baseOff: Code[Long], i: Code[Int]): Code[Long] =
+    baseOff + i.toL * const(elementByteSize)
+
   def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long]
 
   def firstElementOffset(aoff: Code[Long]): Code[Long]
@@ -63,6 +66,9 @@ abstract class PContainer extends PIterable {
   def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long]
 
   def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long]
+
+  final def loadElementFromBase(baseOff: Code[Long], i: Code[Int]): Code[Long] =
+    elementType.loadFromNested(elementOffsetFromBase(baseOff, i))
 
   def allocate(region: Region, length: Int): Long
 
