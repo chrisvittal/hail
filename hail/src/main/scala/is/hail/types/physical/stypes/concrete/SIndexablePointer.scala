@@ -129,7 +129,7 @@ class SIndexablePointerSettable(
               f(cb, idx, elt)
             })
           cb.assign(idx, idx + 1)
-          cb.assign(elementPtr, elementPtr + pca.elementByteSize)
+          cb.assign(elementPtr, pca.nextElementAddress(elementPtr))
         })
       case _ => super.forEachDefined(cb)(f)
     }
