@@ -4015,12 +4015,12 @@ steps:
       - atgu_database
   - kind: buildImage2
     name: rssvc_image
-    dockerFile: /io/repo/rssvc/Dockerfile
-    contextPath: /io/repo
+    dockerFile: /io/rssvc/Dockerfile
+    contextPath: /io/rssvc
     publishAs: rssvc
     inputs:
-      - from: /repo
-        to: /io/repo
+      - from: /repo/rssvc
+        to: /io/rssvc
     dependsOn:
       - merge_code
   - kind: deploy
