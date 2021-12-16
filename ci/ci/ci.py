@@ -309,6 +309,17 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
     return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
+@routes.post('/add_watched_branch')
+@check_csrf_token
+@web_authenticated_developers_only(redirect=False)
+async def post_add_watched_branch(request, userdata):
+    app = request.app
+    post = await request.post()
+    session = await aiohttp_session.get_session(request)
+    set_message(session, f'DEBUG {post}', 'info')
+    return web.HTTPFound(deploy_config.external_url('ci', '/'))
+
+
 @routes.get('/healthcheck')
 async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response(status=200)
