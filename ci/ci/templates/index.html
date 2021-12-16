@@ -48,6 +48,19 @@
       <input type="text" name="sha" id="sha">
       <button type="submit">Authorize</button>
     </form>
+    <h2>Add Watched Branch</h2>
+    <form action="{{ base_path }}/add_watched_branch" method=post>
+      <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+      <label for="add_branch_branch">Repo:</label>
+      <input type="text" name="repo" id="add_branch_repo" required>
+      <label for="add_branch_branch">Branch:</label>
+      <input type="text" name="branch" id="add_branch_branch" required>
+      <label for="add_branch_deployable">Deployable?</label>
+      <input type="checkbox" name="deployable" id="add_branch_deployable">
+      <label for="add_branch_mergeable">Mergable?</label>
+      <input type="checkbox" name="mergable" id="add_branch_mergeable">
+      <button type="submit">Add Watched Branch</button>
+    </form>
     <script type="text/javascript">
       focusOnSlash("prsSearchBar");
     </script>
