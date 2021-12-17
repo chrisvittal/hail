@@ -312,11 +312,29 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
 @routes.post('/add_watched_branch')
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
-async def post_add_watched_branch(request, userdata):
-    app = request.app
+async def post_add_watched_branch(request, userdata):  # pylint: disable=unused-argument
+    gh = app['github_client']
     post = await request.post()
     session = await aiohttp_session.get_session(request)
-    set_message(session, f'DEBUG {post}', 'info')
+    mergeable = post.get('mergeable') is not None
+    deployable = post.get('deployable') is not None
+    repo = post.get('repo')
+    branch = post.get('branch')
+
+    if not repo or not branch:
+        message = 'missing at least one of repo, branch'
+        raise web.HTTPBadRequest(text=message)
+
+    try:
+        branch = await gh.getitem(f'/repos/{repo}/branches/{branch}')
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:  # pylint: disable=broad-except
+        message = f'{repo}:{branch} is not a valid github branch'
+        raise web.HTTPBadRequest(text=message) from e
+
+    set_message(session, f'added {repo}:{branch} to watched branches', 'info')
+
     return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
