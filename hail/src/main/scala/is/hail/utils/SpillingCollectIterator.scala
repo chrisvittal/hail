@@ -35,12 +35,12 @@ class SpillingCollectIterator[T: ClassTag] private (localTmpdir: String, fs: FS,
     _size += a.length
     if (_size > sizeLimit) {
       val file = ExecuteContext.createTmpPathNoCleanup(localTmpdir, s"spilling-collect-iterator-$partition")
-      log.info(s"spilling partition $partition to $file")
       using(fs.createNoCompression(file)) { os =>
         var k = 0
         while (k < buf.length) {
           val vals = buf(k)
           if (vals != null) {
+            log.info(s"spilling partition $partition to $file")
             buf(k) = null
             val pos = os.getPosition
             val oos = new ObjectOutputStream(os)
@@ -95,4 +95,3 @@ class SpillingCollectIterator[T: ClassTag] private (localTmpdir: String, fs: FS,
     it.next
   }
 }
-
