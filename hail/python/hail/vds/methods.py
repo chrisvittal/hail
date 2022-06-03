@@ -728,7 +728,8 @@ def segment_reference_blocks(ref: 'MatrixTable', intervals: 'Table') -> 'MatrixT
                                                          e))).drop('__contig_idx'))
                      ))
     )
-    dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus', '__contig_idx')
+    dense = dense.filter(dense._include_locus).drop('_interval_dup', '_include_locus', '__contig_idx') \
+            .checkpoint(new_temp_file(extension='mt'))
 
     # at this point, 'dense' is a table with dense rows of reference blocks, keyed by locus
 
