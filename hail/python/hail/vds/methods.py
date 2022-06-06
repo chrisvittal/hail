@@ -820,8 +820,8 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     else:
         dp_field_to_use = dp_field
 
-    split = split.annotate(interval=intervals[split.row_key[0]].interval_dup) \
-        .checkpoint(new_temp_file(extension='ht'))
+    split = split.annotate_rows(interval=intervals[split.row_key[0]].interval_dup) \
+        .checkpoint(new_temp_file(extension='mt'))
 
     ref_block_length = (split.END - split.locus.position + 1)
     if dp_field_to_use is not None:
