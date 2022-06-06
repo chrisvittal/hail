@@ -830,7 +830,10 @@ def interval_coverage(vds: VariantDataset, intervals: hl.Table, gq_thresholds=(0
     else:
         dp_field_dict = dict()
 
-    per_interval = split.group_rows_by(interval=intervals[split.row_key[0]].interval_dup) \
+
+    per_interval = split.annotate(interval=intervals[split.row_key[0]].interval_dup) \
+        .checkpoint(new_temp_file(extension='ht'))
+    per_interval = per_interval.group_rows_by(per_interval.interval) \
         .aggregate(
         bases_over_gq_threshold=tuple(
             hl.agg.filter(split.GQ >= gq_threshold, hl.agg.sum(ref_block_length)) for gq_threshold in
