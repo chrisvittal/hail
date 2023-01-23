@@ -245,7 +245,7 @@ jupyterlab-widgets==3.0.4
     # via ipywidgets
 lazy-object-proxy==1.8.0
     # via astroid
-markupsafe==2.1.1
+markupsafe==2.1.2
     # via
     #   jinja2
     #   nbconvert
