@@ -17,7 +17,7 @@ class AvroTableReader(
   unsafeOptions: Option[UnsafeAvroTableReaderOptions] = None,
 ) extends TableReaderWithExtraUID {
 
-  private val partitioner: RVDPartitioner =
+  private def partitioner(ctx: ExecuteContext): RVDPartitioner =
     unsafeOptions.map { case UnsafeAvroTableReaderOptions(key, intervals, _) =>
       require(
         intervals.length == paths.length,
@@ -27,12 +27,12 @@ class AvroTableReader(
           )} and ${intervals.length} ${plural(intervals.length, "interval")}",
       )
       RVDPartitioner.generate(
-        null,
+        ctx.stateManager,
         partitionReader.fullRowType.typeAfterSelectNames(key),
         intervals,
       )
     }.getOrElse {
-      RVDPartitioner.unkeyed(null, paths.length)
+      RVDPartitioner.unkeyed(ctx.stateManager, paths.length)
     }
 
   def pathsUsed: Seq[String] = paths
@@ -75,7 +75,7 @@ class AvroTableReader(
     }
     TableStage(
       globals,
-      partitioner,
+      partitioner(ctx),
       TableStageDependency.none,
       contexts,
       ctx => ReadPartition(ctx, requestedType.rowType, partitionReader),
