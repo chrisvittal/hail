@@ -1,10 +1,14 @@
 package is.hail.utils
 
-import is.hail.{CancellingExecutorService, HailSuite}
+import is.hail.HailSuite
 import is.hail.check.{Gen, Prop}
 import is.hail.io.fs.HadoopFS
 
-import java.util.concurrent.Executors
+import scala.collection.mutable.ArrayBuffer
+
+import org.apache.spark.storage.StorageLevel
+import org.sparkproject.guava.util.concurrent.MoreExecutors
+import org.testng.annotations.Test
 
 import com.google.common.util.concurrent.MoreExecutors.newDirectExecutorService
 import org.apache.spark.storage.StorageLevel
@@ -198,29 +202,19 @@ class UtilsSuite extends HailSuite {
   }
 
   @Test def testRunAll(): Unit = {
-    type F[_] = Null
+    type F[_] = ArrayBuffer[Int]
 
-    val (_, successes) =
-      runAll[F, Int](newDirectExecutorService())((_, _) => null)(null)(
+    val (failures, successes) =
+      runAll[F, Int](
+        MoreExecutors.sameThreadExecutor()
+      ) { case (acc, (_, index)) => acc :+ index }(
+        new ArrayBuffer[Int](2)
+      )(
         for { k <- 0 until 4 } yield (() => if (k % 2 == 0) k else throw new Exception(), k)
       )
 
+    assert(failures == Seq(1, 3))
     assert(successes == Seq(0 -> 0, 2 -> 2))
-  }
-
-  @Test def testRunAllWithCancellingExecutorService(): Unit = {
-    type F[_] = Null
-
-    val delegate = Executors.newSingleThreadExecutor()
-
-    try {
-      val (_, successes) =
-        runAll[F, Int](new CancellingExecutorService(delegate))((_, _) => null)(null)(
-          for { k <- 0 until 4 } yield (() => if (k % 2 == 0) k else throw new Exception(), k)
-        )
-
-      assert(successes == Seq(0 -> 0))
-    } finally delegate.shutdown()
   }
 
   @Test def testMerge(): Unit = {

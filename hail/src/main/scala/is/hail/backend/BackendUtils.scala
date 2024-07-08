@@ -10,7 +10,8 @@ import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
 
-import scala.util.control.NonFatal
+import scala.annotation.nowarn
+import scala.util.Try
 
 object BackendUtils {
   type F = AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]
@@ -27,6 +28,17 @@ class BackendUtils(
 
   def getModule(id: String): (HailClassLoader, FS, HailTaskContext, Region) => F = loadedModules(id)
 
+  private[this] def lookupSemanticHashResults(
+    backendContext: BackendContext,
+    stageName: String,
+    semanticHash: Option[SemanticHash.Type],
+  ): Option[IndexedSeq[(Array[Byte], Int)]] = semanticHash.map { s =>
+    log.info(s"[collectDArray|$stageName]: querying cache for $s")
+    val cachedResults = backendContext.executionCache.lookup(s)
+    log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $s.")
+    cachedResults
+  }
+
   def collectDArray(
     backendContext: BackendContext,
     theDriverHailClassLoader: HailClassLoader,
@@ -37,75 +49,115 @@ class BackendUtils(
     stageName: String,
     semhash: Option[SemanticHash.Type],
     tsd: Option[TableStageDependency],
-  ): Array[Array[Byte]] = {
+  ): Array[Array[Byte]] = lookupSemanticHashResults(backendContext, stageName, semhash) match {
+    case None =>
+      if (contexts.isEmpty)
+        return Array()
 
-    val cachedResults =
-      semhash
-        .map { s =>
-          log.info(s"[collectDArray|$stageName]: querying cache for $s")
-          val cachedResults = backendContext.executionCache.lookup(s)
-          log.info(s"[collectDArray|$stageName]: found ${cachedResults.length} entries for $s.")
-          cachedResults
-        }
-        .getOrElse(IndexedSeq.empty)
+      val backend = HailContext.backend
+      val f = getModule(modID)
 
-    val remainingPartitions =
-      contexts.indices.filterNot(k => cachedResults.containsOrdered[Int](k, _ < _, _._2))
+      log.info(
+        s"[collectDArray|$stageName]: executing ${contexts.length} tasks, " +
+          s"contexts size = ${formatSpace(contexts.map(_.length.toLong).sum)}, " +
+          s"globals size = ${formatSpace(globals.length)}"
+      )
 
-    val backend = HailContext.backend
-    val mod = getModule(modID)
-    val t = System.nanoTime()
-    val (failureOpt, successes) =
-      remainingPartitions match {
-        case Seq() =>
-          (None, IndexedSeq.empty)
-        case Seq(k) if backend.canExecuteParallelTasksOnDriver =>
-          try
-            using(new LocalTaskContext(k, 0)) { htc =>
-              using(htc.getRegionPool().getRegion()) { r =>
-                val f = mod(theDriverHailClassLoader, fs, htc, r)
-                val res = retryTransientErrors(f(r, contexts(k), globals))
-                (None, FastSeq(res -> k))
-              }
+      val t = System.nanoTime()
+      val results = if (backend.canExecuteParallelTasksOnDriver && contexts.length == 1) {
+        val context = contexts(0)
+        using(new LocalTaskContext(0, 0)) { htc =>
+          using(htc.getRegionPool().getRegion()) { r =>
+            val run = f(theDriverHailClassLoader, fs, htc, r)
+            val result = retryTransientErrors {
+              run(r, context, globals)
             }
-          catch {
-            case NonFatal(ex) =>
-              (Some(ex), IndexedSeq.empty)
+            Array(result)
           }
-        case partitions =>
-          val globalsBC = backend.broadcast(globals)
-          val fsConfigBC = backend.broadcast(fs.getConfiguration())
-          backend.parallelizeAndComputeWithIndex(
-            backendContext,
-            fs,
-            contexts,
-            stageName,
-            tsd,
-            Some(partitions),
-          ) { (ctx, htc, theHailClassLoader, fs) =>
+        }
+      } else {
+        val globalsBC = backend.broadcast(globals)
+        val fsConfigBC = backend.broadcast(fs.getConfiguration())
+        backend.parallelizeAndComputeWithIndex(backendContext, fs, contexts, stageName, tsd) {
+          (ctx, htc, theHailClassLoader, fs) =>
             val fsConfig = fsConfigBC.value
             val gs = globalsBC.value
             fs.setConfiguration(fsConfig)
             htc.getRegionPool().scopedRegion { region =>
-              mod(theHailClassLoader, fs, htc, region)(region, ctx, gs)
+              f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
             }
-          }
+        }
       }
 
-    log.info(
-      s"[collectDArray|$stageName]: executed ${remainingPartitions.length} tasks in ${formatTime(System.nanoTime() - t)}"
-    )
+      log.info(s"[collectDArray|$stageName]: executed ${contexts.length} tasks " +
+        s"in ${formatTime(System.nanoTime() - t)}")
 
-    val results =
-      merge[(Array[Byte], Int)](
-        cachedResults,
-        successes.sortBy(_._2),
-        _._2 < _._2,
-      )
+      results
+    case Some(cachedResults) =>
+      @nowarn("cat=unused-pat-vars&msg=pattern var c")
+      val remainingContexts =
+        for {
+          c @ (_, k) <- contexts.zipWithIndex
+          if !cachedResults.containsOrdered[Int](k, _ < _, _._2)
+        } yield c
+      val results =
+        if (remainingContexts.isEmpty) {
+          cachedResults
+        } else {
+          val backend = HailContext.backend
+          val f = getModule(modID)
 
-    semhash.foreach(s => backendContext.executionCache.put(s, results))
-    failureOpt.foreach(throw _)
+          log.info(
+            s"[collectDArray|$stageName]: executing ${remainingContexts.length} tasks, " +
+              s"contexts size = ${formatSpace(contexts.map(_.length.toLong).sum)}, " +
+              s"globals size = ${formatSpace(globals.length)}"
+          )
 
-    results.map(_._1).toArray
+          val t = System.nanoTime()
+          val (failureOpt, successes) =
+            remainingContexts match {
+              case Array((context, k)) if backend.canExecuteParallelTasksOnDriver =>
+                Try {
+                  using(new LocalTaskContext(k, 0)) { htc =>
+                    using(htc.getRegionPool().getRegion()) { r =>
+                      val run = f(theDriverHailClassLoader, fs, htc, r)
+                      val res = retryTransientErrors {
+                        run(r, context, globals)
+                      }
+                      FastSeq(res -> k)
+                    }
+                  }
+                }
+                  .fold(t => (Some(t), IndexedSeq.empty), (None, _))
+
+              case _ =>
+                val globalsBC = backend.broadcast(globals)
+                val fsConfigBC = backend.broadcast(fs.getConfiguration())
+                val (failureOpt, successes) =
+                  backend.parallelizeAndComputeWithIndexReturnAllErrors(backendContext, fs,
+                    remainingContexts, stageName, tsd) {
+                    (ctx, htc, theHailClassLoader, fs) =>
+                      val fsConfig = fsConfigBC.value
+                      val gs = globalsBC.value
+                      fs.setConfiguration(fsConfig)
+                      htc.getRegionPool().scopedRegion { region =>
+                        f(theHailClassLoader, fs, htc, region)(region, ctx, gs)
+                      }
+                  }
+                (failureOpt, successes)
+            }
+
+          log.info(s"[collectDArray|$stageName]: executed ${remainingContexts.length} tasks " +
+            s"in ${formatTime(System.nanoTime() - t)}")
+
+          val results =
+            merge[(Array[Byte], Int)](cachedResults, successes.sortBy(_._2), _._2 < _._2)
+          semhash.foreach(s => backendContext.executionCache.put(s, results))
+          failureOpt.foreach(throw _)
+
+          results
+        }
+
+      results.map(_._1).toArray
   }
 }

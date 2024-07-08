@@ -1,6 +1,6 @@
 package is.hail.backend.local
 
-import is.hail.{CancellingExecutorService, HailContext, HailFeatureFlags}
+import is.hail.{HailContext, HailFeatureFlags}
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.backend._
@@ -24,10 +24,10 @@ import scala.reflect.ClassTag
 
 import java.io.PrintWriter
 
-import com.google.common.util.concurrent.MoreExecutors
 import org.apache.hadoop
 import org.json4s._
 import org.json4s.jackson.Serialization
+import org.sparkproject.guava.util.concurrent.MoreExecutors
 
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
@@ -130,24 +130,37 @@ class LocalBackend(val tmpdir: String) extends Backend with BackendWithCodeCache
     current
   }
 
-  override def parallelizeAndComputeWithIndex(
+  def parallelizeAndComputeWithIndex(
     backendContext: BackendContext,
     fs: FS,
-    contexts: IndexedSeq[Array[Byte]],
+    collection: Array[Array[Byte]],
     stageIdentifier: String,
-    dependency: Option[TableStageDependency],
-    partitions: Option[IndexedSeq[Int]],
+    dependency: Option[TableStageDependency] = None,
+  )(
+    f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
+  ): Array[Array[Byte]] = {
+    val stageId = nextStageId()
+    collection.zipWithIndex.map { case (c, i) =>
+      using(new LocalTaskContext(i, stageId))(htc => f(c, htc, theHailClassLoader, fs))
+    }
+  }
+
+  override def parallelizeAndComputeWithIndexReturnAllErrors(
+    backendContext: BackendContext,
+    fs: FS,
+    collection: IndexedSeq[(Array[Byte], Int)],
+    stageIdentifier: String,
+    dependency: Option[TableStageDependency] = None,
   )(
     f: (Array[Byte], HailTaskContext, HailClassLoader, FS) => Array[Byte]
   ): (Option[Throwable], IndexedSeq[(Array[Byte], Int)]) = {
-
     val stageId = nextStageId()
-    runAllKeepFirstError(new CancellingExecutorService(MoreExecutors.newDirectExecutorService())) {
-      partitions.getOrElse(contexts.indices).map { i =>
+    runAllKeepFirstError(MoreExecutors.sameThreadExecutor) {
+      collection.map { case (c, i) =>
         (
           () =>
             using(new LocalTaskContext(i, stageId)) {
-              f(contexts(i), _, theHailClassLoader, fs)
+              f(c, _, theHailClassLoader, fs)
             },
           i,
         )
