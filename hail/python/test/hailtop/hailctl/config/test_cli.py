@@ -219,7 +219,7 @@ global/profile=profile1"""
     # List the available profiles
     res = runner.invoke(cli.profile_app, ['list'], catch_exceptions=False)
     assert res.exit_code == 0
-    assert res.stdout.strip() == '  default\n* profile1'
+    assert res.stdout.rstrip() == '  default\n* profile1'
 
     # the value for remote tmpdir should be the new one (not the default one)
     res = runner.invoke(cli.app, ['get', 'batch/remote_tmpdir'], catch_exceptions=False)

@@ -5,11 +5,11 @@ from typing import Annotated as Ann
 from typing import Generator, Optional, Tuple
 
 import typer
-from rich import print
 from typer import Argument as Arg
 
 from hailtop.config.variables import ConfigVariable
 
+from ..rich_output import print
 from .config_variables import config_variables
 
 app = typer.Typer(
