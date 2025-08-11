@@ -273,13 +273,9 @@ trait CodeBuilderLike {
 
   def _assert(cond: => Code[Boolean], msgs: Code[String]*): Unit = {
     val message = msgs.reduce(_.concat(_))
-    if (HAIL_BUILD_CONFIGURATION.isDebug) {
-      val traceback = mb.cb.modb.getObject[Throwable](new Traceback().fillInStackTrace())
-      val assertion = Code.newInstance[AssertionError, String, Throwable](message, traceback)
-      if_(cond, {}, _throw(assertion))
-    } else {
-      if_(cond, {}, _throw(Code.newInstance[AssertionError, Object](message)))
-    }
+    val traceback = mb.cb.modb.getObject[Throwable](new Traceback().fillInStackTrace())
+    val assertion = Code.newInstance[AssertionError, String, Throwable](message, traceback)
+    if_(cond, {}, _throw(assertion))
   }
 }
 
